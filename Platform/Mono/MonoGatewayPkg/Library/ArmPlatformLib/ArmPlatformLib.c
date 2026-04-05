@@ -65,6 +65,7 @@ ApplyMonoGatewayBoardMuxing (
   )
 {
   LS1046A_SUPPLEMENTAL_CONFIG  *Scfg;
+  UINT32                        UsbPwrFault;
 
   Scfg = (LS1046A_SUPPLEMENTAL_CONFIG *)LS1046A_SCFG_ADDRESS;
 
@@ -74,6 +75,23 @@ ApplyMonoGatewayBoardMuxing (
   // IIC3/IIC4 instead of USB2/IIC4.
   //
   ScfgWrite32 ((UINTN)&Scfg->RcwPMuxCr0, 0x0000);
+
+  //
+  // Keep the active host path on USB1. Mono's USB bring-up works in U-Boot
+  // without relying on a fault input, and the upstream FRWY defaults leave
+  // the xHCI root hub stuck in permanent over-current on Mono.
+  //
+  ScfgWrite32 ((UINTN)&Scfg->UsbDrvVBusSelCr, SCFG_USBDRVVBUS_SELCR_USB1);
+
+  //
+  // Treat all USB power-fault inputs as inactive. On Mono this avoids the
+  // false OCA state that prevents EDK2's xHCI stack from enumerating any
+  // downstream USB devices.
+  //
+  UsbPwrFault = (SCFG_USBPWRFAULT_INACTIVE << SCFG_USBPWRFAULT_USB3_SHIFT) |
+                (SCFG_USBPWRFAULT_INACTIVE << SCFG_USBPWRFAULT_USB2_SHIFT) |
+                (SCFG_USBPWRFAULT_INACTIVE << SCFG_USBPWRFAULT_USB1_SHIFT);
+  ScfgWrite32 ((UINTN)&Scfg->UsbPwrFaultSelCr, UsbPwrFault);
 }
 
 /**
