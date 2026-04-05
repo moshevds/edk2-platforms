@@ -10,6 +10,7 @@
 #include <Library/DebugLib.h>
 #include <Library/IoLib.h>
 #include <Library/NonDiscoverableDeviceRegistrationLib.h>
+#include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 
 #include "UsbHcd.h"
@@ -28,6 +29,92 @@ XhciSetBeatBurstLength (
     USB3_ENABLE_BEAT_BURST);
 
   MmioOr32 ((UINTN)&Dwc3Reg->GSBusCfg1, USB3_SET_BEAT_BURST_LIMIT);
+}
+
+STATIC
+EFI_STATUS
+XhciWaitForRegisterBits (
+  IN UINTN   Register,
+  IN UINT32  Mask,
+  IN UINT32  Value,
+  IN UINT32  TimeoutUsec
+  )
+{
+  UINT32  Data;
+
+  while (TimeoutUsec-- > 0) {
+    Data = MmioRead32 (Register);
+    if ((Data & Mask) == Value) {
+      return EFI_SUCCESS;
+    }
+
+    MicroSecondDelay (1);
+  }
+
+  return EFI_TIMEOUT;
+}
+
+STATIC
+EFI_STATUS
+XhciResetController (
+  IN UINTN  ControllerAddr
+  )
+{
+  EFI_STATUS  Status;
+  UINT32      CapLength;
+  UINTN       OpRegBase;
+  UINTN       UsbCmdReg;
+  UINTN       UsbStsReg;
+  UINT32      UsbCmd;
+
+  CapLength = MmioRead32 (ControllerAddr) & XHCI_CAPLENGTH_MASK;
+  OpRegBase = ControllerAddr + CapLength;
+  UsbCmdReg = OpRegBase + XHCI_USBCMD_OFFSET;
+  UsbStsReg = OpRegBase + XHCI_USBSTS_OFFSET;
+
+  if ((MmioRead32 (UsbStsReg) & XHCI_STS_HALT) == 0) {
+    UsbCmd = MmioRead32 (UsbCmdReg);
+    UsbCmd &= ~XHCI_CMD_RUN;
+    MmioWrite32 (UsbCmdReg, UsbCmd);
+  }
+
+  Status = XhciWaitForRegisterBits (
+             UsbStsReg,
+             XHCI_STS_HALT,
+             XHCI_STS_HALT,
+             XHCI_MAX_HALT_USEC
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to halt xHCI controller @ 0x%lx (%r)\n", ControllerAddr, Status));
+    return Status;
+  }
+
+  UsbCmd = MmioRead32 (UsbCmdReg);
+  UsbCmd |= XHCI_CMD_RESET;
+  MmioWrite32 (UsbCmdReg, UsbCmd);
+
+  Status = XhciWaitForRegisterBits (
+             UsbCmdReg,
+             XHCI_CMD_RESET,
+             0,
+             XHCI_MAX_RESET_USEC
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to reset xHCI controller @ 0x%lx (%r)\n", ControllerAddr, Status));
+    return Status;
+  }
+
+  Status = XhciWaitForRegisterBits (
+             UsbStsReg,
+             XHCI_STS_CNR,
+             0,
+             XHCI_MAX_RESET_USEC
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "xHCI controller remained not-ready @ 0x%lx (%r)\n", ControllerAddr, Status));
+  }
+
+  return Status;
 }
 
 STATIC
@@ -199,6 +286,28 @@ InitializeUsbController (
   return EFI_SUCCESS;
 }
 
+VOID
+EFIAPI
+UsbExitBootServicesCallback (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  UINT32  NumUsbController;
+  UINTN   ControllerAddr;
+  UINT32  Index;
+
+  gBS->CloseEvent (Event);
+
+  NumUsbController = PcdGet32 (PcdNumUsbController);
+
+  for (Index = 0; Index < NumUsbController; Index++) {
+    ControllerAddr = PcdGet64 (PcdUsbBaseAddr) +
+                     (Index * PcdGet32 (PcdUsbSize));
+    XhciResetController (ControllerAddr);
+  }
+}
+
 /**
   This function gets registered as a callback to perform USB controller intialization
 
@@ -215,7 +324,7 @@ UsbEndOfDxeCallback (
 {
   EFI_STATUS    Status;
   UINT32        NumUsbController;
-  UINT32        ControllerAddr;
+  UINTN         ControllerAddr;
   UINT32        Index;
 
   gBS->CloseEvent (Event);
@@ -261,6 +370,10 @@ InitializeUsbHcd (
 {
   EFI_STATUS               Status;
   EFI_EVENT                EndOfDxeEvent;
+  EFI_EVENT                ExitBootServicesEvent;
+
+  (VOID)ImageHandle;
+  (VOID)SystemTable;
 
   Status = gBS->CreateEventEx (
                   EVT_NOTIFY_SIGNAL,
@@ -269,6 +382,18 @@ InitializeUsbHcd (
                   NULL,
                   &gEfiEndOfDxeEventGroupGuid,
                   &EndOfDxeEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->CreateEventEx (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_NOTIFY,
+                  UsbExitBootServicesCallback,
+                  NULL,
+                  &gEfiEventExitBootServicesGuid,
+                  &ExitBootServicesEvent
                   );
 
   return Status;
