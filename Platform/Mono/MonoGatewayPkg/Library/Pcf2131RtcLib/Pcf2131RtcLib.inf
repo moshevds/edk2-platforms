@@ -1,0 +1,43 @@
+## @file
+#
+#  RealTimeClockLib implementation for the Mono Gateway PCF2131 RTC.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = Pcf2131RtcLib
+  FILE_GUID                      = 7a0fbf36-1888-4c40-8fe1-9e6ff52d3151
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = RealTimeClockLib
+
+[Sources.common]
+  Pcf2131RtcLib.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseMemoryLib
+  DebugLib
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiI2cMasterProtocolGuid                          ## CONSUMES
+  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## CONSUMES
+
+[FixedPcd]
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cSlaveAddress
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxSlaveAddress
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxChannel
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cBusFrequency
+
+[Depex]
+  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid

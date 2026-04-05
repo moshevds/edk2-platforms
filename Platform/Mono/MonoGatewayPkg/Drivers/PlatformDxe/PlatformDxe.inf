@@ -1,0 +1,49 @@
+## @file
+#
+#  Component description file for the Mono Gateway DXE platform driver.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = PlatformDxe
+  FILE_GUID                      = 39d976bc-c4be-4a90-bfbe-8eb406cdb5d2
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = PlatformDxeEntryPoint
+
+[Sources]
+  PlatformDxe.c
+
+[Packages]
+  ArmPkg/ArmPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+  Silicon/NXP/Chassis2/Chassis2.dec
+  Silicon/NXP/LS1046A/LS1046A.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  MemoryAllocationLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+
+[Guids]
+  gNxpNonDiscoverableI2cMasterGuid
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid        ## PRODUCES
+  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## PRODUCES
+
+[Depex]
+  TRUE

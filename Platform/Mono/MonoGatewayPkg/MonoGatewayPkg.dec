@@ -1,0 +1,35 @@
+#  MonoGatewayPkg.dec
+#  Mono Gateway board package.
+#
+#  Copyright 2019-2020 NXP
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+
+[Defines]
+  PACKAGE_NAME                   = MonoGatewayPkg
+  PACKAGE_GUID                   = eab629b2-b7a7-4e75-a1b9-b5cfcca4d6a3
+
+[Guids]
+  gMonoGatewayTokenSpaceGuid = { 0x1542fbf5, 0x13f1, 0x44c3, { 0x80, 0x24, 0xe7, 0x52, 0x64, 0x86, 0xc8, 0x76 } }
+
+[Protocols]
+  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid = { 0x0923ac5b, 0x45ae, 0x4a4e, { 0x92, 0x16, 0x55, 0x43, 0x7d, 0xca, 0x89, 0x4a } }
+
+[PcdsFixedAtBuild]
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cSlaveAddress|0x53|UINT8|0x00000001
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxSlaveAddress|0x70|UINT8|0x00000002
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxChannel|0x04|UINT8|0x00000003
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cBusFrequency|100000|UINT32|0x00000004
+
+################################################################################
+#
+# Include Section - list of Include Paths that are provided by this package.
+#                   Comments are used for Keywords and Module Types.
+#
+# Supported Module Types:
+#  BASE SEC PEI_CORE PEIM DXE_CORE DXE_DRIVER DXE_RUNTIME_DRIVER DXE_SMM_DRIVER DXE_SAL_DRIVER UEFI_DRIVER UEFI_APPLICATION
+#
+################################################################################
+[Includes.common]
+  Include                        # Root include for the package
