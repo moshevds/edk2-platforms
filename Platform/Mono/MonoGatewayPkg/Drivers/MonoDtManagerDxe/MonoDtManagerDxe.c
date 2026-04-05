@@ -41,7 +41,7 @@ STATIC EFI_GUID mMonoDtManagerAppFileGuid = MONO_DT_MANAGER_APP_FILE_GUID;
 STATIC CONST MONO_DT_BLOB_DESCRIPTOR mMonoEmbeddedDtbs[] = {
   {
     MONO_DT_MONO_GATEWAY_DK_SDK_FILE_GUID,
-    L"mono-gateway-dk-sdk"
+    L"mono-gateway-dk"
   }
 };
 

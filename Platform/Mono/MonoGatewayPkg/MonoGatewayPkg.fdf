@@ -148,7 +148,7 @@ READ_LOCK_STATUS   = TRUE
   INF ShellPkg/Application/Shell/Shell.inf
 
   FILE FREEFORM = 4b0eb03f-5585-4fb5-aebe-0fc634459d21 {
-    SECTION RAW = $(WORKSPACE)/../../meta-mono/build/tmp/deploy/images/gateway-dk/mono-gateway-dk-sdk.dtb
+    SECTION RAW = Platform/Mono/MonoGatewayPkg/DeviceTree/mono-gateway-dk-from-kernel-itb.dtb
   }
 
   #
