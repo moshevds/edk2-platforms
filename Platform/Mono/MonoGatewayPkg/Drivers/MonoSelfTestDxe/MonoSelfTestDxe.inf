@@ -1,0 +1,42 @@
+## @file
+#
+#  Register MonoSelfTest as both a shell command and a boot option.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = MonoSelfTestDxe
+  FILE_GUID                      = 5e9de0ca-41f5-4b82-a4c2-5f7a1dbb2a43
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MonoSelfTestDxeEntryPoint
+
+[Sources]
+  MonoSelfTestDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  MemoryAllocationLib
+  UefiBootManagerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid
+  gEfiShellDynamicCommandProtocolGuid ## PRODUCES
+
+[Depex]
+  TRUE

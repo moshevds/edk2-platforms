@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PLATFORMS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)"
+PLATFORMS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 WORKSPACE_DIR="${WORKSPACE_DIR:-${PLATFORMS_DIR}/../edk2}"
 PLATFORM_DSC="Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dsc"
 BUILD_TYPE="${1:-DEBUG}"

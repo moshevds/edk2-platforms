@@ -35,8 +35,14 @@
 # Components Section - list of all EDK II Modules needed by this Platform
 #
 ################################################################################
+[PcdsFixedAtBuild.common]
+  gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x02F00000
+  gNxpQoriqLsTokenSpaceGuid.PcdUsbSize|0x00100000
+  gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|1
+
 [Components.common]
   Platform/Mono/MonoGatewayPkg/Drivers/PlatformDxe/PlatformDxe.inf
+  Platform/Mono/MonoGatewayPkg/Drivers/MonoSelfTestDxe/MonoSelfTestDxe.inf
 
   #
   # Architectural Protocols
@@ -46,4 +52,9 @@
     gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
   }
 
+  Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
+  Silicon/NXP/Drivers/UsbHcdInitDxe/UsbHcd.inf
+  MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
+  MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+  Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
 ##

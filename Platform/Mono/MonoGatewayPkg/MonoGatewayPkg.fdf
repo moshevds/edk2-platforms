@@ -100,6 +100,12 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
 
   #
+  # Board-specific platform discovery must run before RTC dispatch.
+  #
+  INF Platform/Mono/MonoGatewayPkg/Drivers/PlatformDxe/PlatformDxe.inf
+  INF Platform/Mono/MonoGatewayPkg/Drivers/MonoSelfTestDxe/MonoSelfTestDxe.inf
+
+  #
   # Multiple Console IO support
   #
   INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
@@ -121,6 +127,7 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
 
   INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  INF Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
 
   #
   # USB Support
@@ -130,10 +137,12 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
   INF MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   INF MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+  INF Silicon/NXP/Drivers/UsbHcdInitDxe/UsbHcd.inf
 
   #
   # UEFI application (Shell Embedded Boot Loader)
   #
+  INF Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
   INF ShellPkg/Application/Shell/Shell.inf
 
   #

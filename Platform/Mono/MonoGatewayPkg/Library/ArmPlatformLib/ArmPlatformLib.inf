@@ -24,6 +24,7 @@
 
 [LibraryClasses]
   ArmLib
+  ChassisLib
   DebugLib
   GpioLib
   SocLib
