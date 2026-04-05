@@ -43,6 +43,7 @@
 [Components.common]
   Platform/Mono/MonoGatewayPkg/Drivers/PlatformDxe/PlatformDxe.inf
   Platform/Mono/MonoGatewayPkg/Drivers/MonoSelfTestDxe/MonoSelfTestDxe.inf
+  Platform/Mono/MonoGatewayPkg/Drivers/MonoDtManagerDxe/MonoDtManagerDxe.inf
 
   #
   # Architectural Protocols
@@ -57,4 +58,5 @@
   MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
   Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
+  Platform/Mono/MonoGatewayPkg/Application/MonoDtManager/MonoDtManager.inf
 ##

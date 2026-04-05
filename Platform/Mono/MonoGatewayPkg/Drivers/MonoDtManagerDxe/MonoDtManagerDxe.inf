@@ -1,0 +1,50 @@
+## @file
+#
+#  Register Mono DT management as both a shell command and a boot option.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = MonoDtManagerDxe
+  FILE_GUID                      = 3875bcd5-6031-4bc0-b08e-b0b8cbbfd348
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MonoDtManagerDxeEntryPoint
+
+[Sources]
+  MonoDtManagerDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  DxeServicesLib
+  FdtLib
+  MemoryAllocationLib
+  PrintLib
+  UefiBootManagerLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid
+  gEfiShellDynamicCommandProtocolGuid ## PRODUCES
+  gMonoDtManagerProtocolGuid          ## PRODUCES
+
+[Guids]
+  gFdtTableGuid
+
+[Depex]
+  TRUE
