@@ -85,10 +85,10 @@
 }
 
 #define PLAT_GIC_CPU_INTERFACE    {                         \
-  GICC_ENTRY (0, GET_MPID (0, 0), 106, 25, 0),             \
-  GICC_ENTRY (1, GET_MPID (0, 1), 107, 25, 0),             \
-  GICC_ENTRY (2, GET_MPID (1, 0),  95, 25, 0),             \
-  GICC_ENTRY (3, GET_MPID (1, 1),  97, 25, 0)              \
+  GICC_ENTRY (0, 0x0, 106, 25, 0),                         \
+  GICC_ENTRY (1, 0x1, 107, 25, 0),                         \
+  GICC_ENTRY (2, 0x2,  95, 25, 0),                         \
+  GICC_ENTRY (3, 0x3,  97, 25, 0)                          \
 }
 
 #define PLAT_TIMER_BLOCK_INFO  { }
