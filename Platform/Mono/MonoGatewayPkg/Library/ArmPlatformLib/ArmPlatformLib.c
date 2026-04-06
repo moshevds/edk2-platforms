@@ -27,6 +27,36 @@ ARM_CORE_INFO mLS1046aMpCoreInfoTable[] = {
     (EFI_PHYSICAL_ADDRESS)0,
     (EFI_PHYSICAL_ADDRESS)0,
     (UINT64)0xFFFFFFFF
+  },
+  {
+    // Cluster 0, Core 1
+    0x1,
+
+    // MP Core MailBox Set/Get/Clear Addresses and Clear Value
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (UINT64)0xFFFFFFFF
+  },
+  {
+    // Cluster 0, Core 2
+    0x2,
+
+    // MP Core MailBox Set/Get/Clear Addresses and Clear Value
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (UINT64)0xFFFFFFFF
+  },
+  {
+    // Cluster 0, Core 3
+    0x3,
+
+    // MP Core MailBox Set/Get/Clear Addresses and Clear Value
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (EFI_PHYSICAL_ADDRESS)0,
+    (UINT64)0xFFFFFFFF
   }
 };
 

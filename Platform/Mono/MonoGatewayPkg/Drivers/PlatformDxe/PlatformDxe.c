@@ -9,11 +9,14 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/ArmLib.h>
+#include <Library/ArmMonitorLib.h>
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
+#include <IndustryStandard/ArmStdSmc.h>
 #include <Soc.h>
 
 #include <Protocol/NonDiscoverableDevice.h>
@@ -33,6 +36,55 @@ typedef struct {
 #define MONO_GATEWAY_I2C_NUM_CONTROLLERS  4
 
 STATIC ADDRESS_SPACE_DESCRIPTOR mI2cDesc[MONO_GATEWAY_I2C_NUM_CONTROLLERS];
+
+STATIC
+VOID
+LogPsciCapabilities (
+  VOID
+  )
+{
+  ARM_MONITOR_ARGS  Args;
+  UINTN             CurrentEL;
+  INTN              PsciVersion;
+  INTN              CpuOnFeatures;
+
+  CurrentEL = ArmReadCurrentEL ();
+
+  ZeroMem (&Args, sizeof (Args));
+  Args.Arg0 = ARM_SMC_ID_PSCI_VERSION;
+  ArmMonitorCall (&Args);
+  PsciVersion = (INTN)Args.Arg0;
+
+  ZeroMem (&Args, sizeof (Args));
+  Args.Arg0 = ARM_SMC_ID_PSCI_FEATURES;
+  Args.Arg1 = ARM_SMC_ID_PSCI_CPU_ON_AARCH64;
+  ArmMonitorCall (&Args);
+  CpuOnFeatures = (INTN)Args.Arg0;
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO PSCI: CurrentEL=0x%Lx PSCI_VERSION=0x%Lx CPU_ON_FEATURES=%Ld\n",
+    (UINT64)CurrentEL,
+    (UINT64)PsciVersion,
+    (INT64)CpuOnFeatures
+    ));
+
+  if (PsciVersion < 0) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "MONO PSCI: PSCI_VERSION failed rc=%Ld; EFI+ACPI SMP will not work without a monitor-backed PSCI implementation\n",
+      (INT64)PsciVersion
+      ));
+  }
+
+  if (CpuOnFeatures != ARM_SMC_PSCI_RET_SUCCESS) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "MONO PSCI: PSCI_FEATURES(CPU_ON_AARCH64) returned %Ld; Linux secondary bring-up is expected to fail\n",
+      (INT64)CpuOnFeatures
+      ));
+  }
+}
 
 STATIC
 EFI_STATUS
@@ -103,6 +155,7 @@ PlatformDxeEntryPoint (
   EFI_HANDLE Handle;
   UINT32     Index;
 
+  LogPsciCapabilities ();
   PopulateI2cInformation ();
 
   for (Index = 0; Index < ARRAY_SIZE (mI2cDesc); Index++) {

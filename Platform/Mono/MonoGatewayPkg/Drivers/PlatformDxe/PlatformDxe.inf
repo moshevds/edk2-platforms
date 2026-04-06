@@ -29,6 +29,8 @@
   Silicon/NXP/NxpQoriqLs.dec
 
 [LibraryClasses]
+  ArmLib
+  ArmMonitorLib
   BaseLib
   BaseMemoryLib
   DebugLib
