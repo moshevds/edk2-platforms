@@ -313,6 +313,9 @@ BuildSpcrTableEx (
       break;
     case 115200:
       AcpiSpcr.BaudRate = EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_BAUD_RATE_115200;
+      // Hack: This should make linux parse it correctly
+      AcpiSpcr.BaudRate = 0;
+      AcpiSpcr.PreciseBaudRate = 0;
       break;
     default:
       AcpiSpcr.BaudRate = 0;
