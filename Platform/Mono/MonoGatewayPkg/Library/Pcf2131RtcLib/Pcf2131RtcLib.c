@@ -1,6 +1,10 @@
 /** @file
   Implement EFI RealTimeClockLib for the Mono Gateway PCF2131 RTC.
 
+  This implementation is runtime-safe: it talks directly to the LS1046A I2C
+  controller through runtime-mapped MMIO and does not depend on DXE-only
+  protocol instances after ExitBootServices().
+
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -10,17 +14,38 @@
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/DxeServicesTableLib.h>
+#include <Library/I2cLib.h>
 #include <Library/PcdLib.h>
 #include <Library/RealTimeClockLib.h>
 #include <Library/UefiBootServicesTableLib.h>
-#include <Library/UefiLib.h>
-#include <Protocol/I2cMaster.h>
+#include <Library/UefiRuntimeLib.h>
+#include <Ppi/NxpPlatformGetClock.h>
+#include <Guid/EventGroup.h>
 
 #include "Pcf2131Rtc.h"
 
-STATIC VOID                    *mDriverEventRegistration;
-STATIC EFI_HANDLE              mI2cMasterHandle;
-STATIC EFI_I2C_MASTER_PROTOCOL *mI2cMaster;
+STATIC EFI_EVENT  mRtcVirtualAddrChangeEvent;
+STATIC VOID       *mRtcI2cBase;
+STATIC UINT64     mRtcI2cInputClockHz;
+STATIC BOOLEAN    mRtcRuntimeReady;
+
+STATIC
+EFI_STATUS
+RtcPrepareController (
+  VOID
+  )
+{
+  if ((mRtcI2cBase == NULL) || (mRtcI2cInputClockHz == 0)) {
+    return EFI_NOT_READY;
+  }
+
+  return I2cInitialize (
+           (UINTN)mRtcI2cBase,
+           mRtcI2cInputClockHz,
+           FixedPcdGet32 (PcdRtcI2cBusFrequency)
+           );
+}
 
 STATIC
 EFI_STATUS
@@ -29,23 +54,26 @@ SelectRtcMuxChannel (
   )
 {
   RTC_I2C_REQUEST  Request;
-  EFI_STATUS        Status;
-  UINT8             Channel;
+  EFI_STATUS       Status;
+  UINT8            Channel;
+
+  Status = RtcPrepareController ();
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
 
   Channel = FixedPcdGet8 (PcdRtcI2cMuxChannel);
-
+  ZeroMem (&Request, sizeof (Request));
   Request.OperationCount = 1;
   Request.Operation[0].Flags = 0;
   Request.Operation[0].LengthInBytes = sizeof (Channel);
   Request.Operation[0].Buffer = &Channel;
 
-  Status = mI2cMaster->StartRequest (
-                         mI2cMaster,
-                         FixedPcdGet8 (PcdRtcI2cMuxSlaveAddress),
-                         (EFI_I2C_REQUEST_PACKET *)&Request,
-                         NULL,
-                         NULL
-                         );
+  Status = I2cBusXfer (
+             (UINTN)mRtcI2cBase,
+             FixedPcdGet8 (PcdRtcI2cMuxSlaveAddress),
+             (EFI_I2C_REQUEST_PACKET *)&Request
+             );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "%a: mux select failed: %r\n", __func__, Status));
   }
@@ -56,34 +84,27 @@ SelectRtcMuxChannel (
 STATIC
 UINT8
 RtcRead (
-  IN UINT8 RtcRegAddr
+  IN UINT8  RtcRegAddr
   )
 {
-  RTC_I2C_REQUEST Request;
-  EFI_STATUS      Status;
-  UINT8           Value;
+  EFI_STATUS  Status;
+  UINT8       Value;
 
   Value = 0;
+
   Status = SelectRtcMuxChannel ();
   if (EFI_ERROR (Status)) {
     return Value;
   }
 
-  Request.OperationCount = 2;
-  Request.Operation[0].Flags = 0;
-  Request.Operation[0].LengthInBytes = sizeof (RtcRegAddr);
-  Request.Operation[0].Buffer = &RtcRegAddr;
-  Request.Operation[1].Flags = I2C_FLAG_READ;
-  Request.Operation[1].LengthInBytes = sizeof (Value);
-  Request.Operation[1].Buffer = &Value;
-
-  Status = mI2cMaster->StartRequest (
-                         mI2cMaster,
-                         FixedPcdGet8 (PcdRtcI2cSlaveAddress),
-                         (EFI_I2C_REQUEST_PACKET *)&Request,
-                         NULL,
-                         NULL
-                         );
+  Status = I2cBusReadReg (
+             (UINTN)mRtcI2cBase,
+             FixedPcdGet8 (PcdRtcI2cSlaveAddress),
+             RtcRegAddr,
+             sizeof (RtcRegAddr),
+             &Value,
+             sizeof (Value)
+             );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "%a: read error at 0x%x: %r\n", __func__, RtcRegAddr, Status));
   }
@@ -100,8 +121,8 @@ RtcWriteBuffer (
   )
 {
   RTC_I2C_REQUEST  Request;
-  EFI_STATUS        Status;
-  UINT8             Packet[16];
+  EFI_STATUS       Status;
+  UINT8            Packet[16];
 
   if (Length + 1 > sizeof (Packet)) {
     return EFI_BAD_BUFFER_SIZE;
@@ -115,18 +136,17 @@ RtcWriteBuffer (
     return Status;
   }
 
+  ZeroMem (&Request, sizeof (Request));
   Request.OperationCount = 1;
   Request.Operation[0].Flags = 0;
   Request.Operation[0].LengthInBytes = Length + 1;
   Request.Operation[0].Buffer = Packet;
 
-  Status = mI2cMaster->StartRequest (
-                         mI2cMaster,
-                         FixedPcdGet8 (PcdRtcI2cSlaveAddress),
-                         (EFI_I2C_REQUEST_PACKET *)&Request,
-                         NULL,
-                         NULL
-                         );
+  Status = I2cBusXfer (
+             (UINTN)mRtcI2cBase,
+             FixedPcdGet8 (PcdRtcI2cSlaveAddress),
+             (EFI_I2C_REQUEST_PACKET *)&Request
+             );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "%a: write error at 0x%x: %r\n", __func__, Register, Status));
   }
@@ -140,10 +160,10 @@ RtcLock (
   VOID
   )
 {
-  EFI_STATUS Status;
-  UINT8      Value;
+  EFI_STATUS  Status;
+  UINT8       Value;
 
-  Value = RtcRead (PCF2131_REG_CTRL1) | PCF2131_BIT_CTRL1_STOP;
+  Value  = RtcRead (PCF2131_REG_CTRL1) | PCF2131_BIT_CTRL1_STOP;
   Status = RtcWriteBuffer (PCF2131_REG_CTRL1, &Value, sizeof (Value));
   if (EFI_ERROR (Status)) {
     return Status;
@@ -159,7 +179,7 @@ RtcUnlock (
   VOID
   )
 {
-  UINT8 Value;
+  UINT8  Value;
 
   Value = RtcRead (PCF2131_REG_CTRL1) & ~PCF2131_BIT_CTRL1_STOP;
   return RtcWriteBuffer (PCF2131_REG_CTRL1, &Value, sizeof (Value));
@@ -168,35 +188,39 @@ RtcUnlock (
 EFI_STATUS
 EFIAPI
 LibGetTime (
-  OUT EFI_TIME                *Time,
-  OUT EFI_TIME_CAPABILITIES   *Capabilities OPTIONAL
+  OUT EFI_TIME               *Time,
+  OUT EFI_TIME_CAPABILITIES  *Capabilities OPTIONAL
   )
 {
-  UINT8 Ctrl3;
+  UINT8  Ctrl3;
 
   if (Time == NULL) {
     return EFI_INVALID_PARAMETER;
   }
 
-  if (mI2cMaster == NULL) {
+  if (mRtcI2cBase == NULL) {
     return EFI_DEVICE_ERROR;
+  }
+
+  if (EfiAtRuntime () && !mRtcRuntimeReady) {
+    return EFI_UNSUPPORTED;
   }
 
   ZeroMem (Time, sizeof (*Time));
 
-  Ctrl3 = RtcRead (PCF2131_REG_CTRL3);
+  Ctrl3        = RtcRead (PCF2131_REG_CTRL3);
   Time->Second = BcdToDecimal8 (RtcRead (PCF2131_REG_SC) & PCF2131_MASK_SEC);
   Time->Minute = BcdToDecimal8 (RtcRead (PCF2131_REG_MN) & PCF2131_MASK_MIN);
-  Time->Hour = BcdToDecimal8 (RtcRead (PCF2131_REG_HR) & PCF2131_MASK_HOUR);
-  Time->Day = BcdToDecimal8 (RtcRead (PCF2131_REG_DM) & PCF2131_MASK_DAY);
-  Time->Month = BcdToDecimal8 (RtcRead (PCF2131_REG_MO) & PCF2131_MASK_MONTH);
-  Time->Year = BcdToDecimal8 (RtcRead (PCF2131_REG_YR));
-  Time->Year += (Time->Year >= 70) ? (PCF2131_START_YEAR - 70) : (PCF2131_END_YEAR - 70);
+  Time->Hour   = BcdToDecimal8 (RtcRead (PCF2131_REG_HR) & PCF2131_MASK_HOUR);
+  Time->Day    = BcdToDecimal8 (RtcRead (PCF2131_REG_DM) & PCF2131_MASK_DAY);
+  Time->Month  = BcdToDecimal8 (RtcRead (PCF2131_REG_MO) & PCF2131_MASK_MONTH);
+  Time->Year   = BcdToDecimal8 (RtcRead (PCF2131_REG_YR));
+  Time->Year  += (Time->Year >= 70) ? (PCF2131_START_YEAR - 70) : (PCF2131_END_YEAR - 70);
 
   if (Capabilities != NULL) {
     ZeroMem (Capabilities, sizeof (*Capabilities));
     Capabilities->Resolution = 1;
-    Capabilities->Accuracy = 50000000;
+    Capabilities->Accuracy   = 50000000;
   }
 
   if ((Ctrl3 & PCF2131_CTRL3_LOW_VOLTAGE) != 0) {
@@ -210,26 +234,30 @@ LibGetTime (
 EFI_STATUS
 EFIAPI
 LibSetTime (
-  IN EFI_TIME *Time
+  IN EFI_TIME  *Time
   )
 {
-  EFI_STATUS Status;
-  UINT8      Values[7];
-  UINT8      Ctrl3;
+  EFI_STATUS  Status;
+  UINT8       Values[7];
+  UINT8       Ctrl3;
 
   if (Time == NULL) {
     return EFI_INVALID_PARAMETER;
   }
 
-  if (mI2cMaster == NULL) {
+  if (mRtcI2cBase == NULL) {
     return EFI_DEVICE_ERROR;
+  }
+
+  if (EfiAtRuntime () && !mRtcRuntimeReady) {
+    return EFI_UNSUPPORTED;
   }
 
   if ((Time->Year < PCF2131_START_YEAR) || (Time->Year >= PCF2131_END_YEAR)) {
     return EFI_INVALID_PARAMETER;
   }
 
-  Ctrl3 = RtcRead (PCF2131_REG_CTRL3) & ~PCF2131_CTRL3_BATTERY_OK_MASK;
+  Ctrl3  = RtcRead (PCF2131_REG_CTRL3) & ~PCF2131_CTRL3_BATTERY_OK_MASK;
   Status = RtcWriteBuffer (PCF2131_REG_CTRL3, &Ctrl3, sizeof (Ctrl3));
   if (EFI_ERROR (Status)) {
     return Status;
@@ -279,63 +307,13 @@ LibSetWakeupTime (
 
 STATIC
 VOID
-I2cDriverRegistrationEvent (
-  IN EFI_EVENT Event,
-  IN VOID      *Context
+EFIAPI
+VirtualNotifyEvent (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
   )
 {
-  EFI_STATUS              Status;
-  EFI_I2C_MASTER_PROTOCOL *I2cMaster;
-  UINTN                   BusFrequency;
-  EFI_HANDLE              Handle;
-  UINTN                   BufferSize;
-
-  do {
-    BufferSize = sizeof (EFI_HANDLE);
-    Status = gBS->LocateHandle (
-                    ByRegisterNotify,
-                    &gEfiI2cMasterProtocolGuid,
-                    mDriverEventRegistration,
-                    &BufferSize,
-                    &Handle
-                    );
-    if (EFI_ERROR (Status)) {
-      break;
-    }
-
-    if (Handle != mI2cMasterHandle) {
-      continue;
-    }
-
-    gBS->CloseEvent (Event);
-
-    Status = gBS->OpenProtocol (
-                    mI2cMasterHandle,
-                    &gEfiI2cMasterProtocolGuid,
-                    (VOID **)&I2cMaster,
-                    gImageHandle,
-                    NULL,
-                    EFI_OPEN_PROTOCOL_EXCLUSIVE
-                    );
-    ASSERT_EFI_ERROR (Status);
-    if (EFI_ERROR (Status)) {
-      break;
-    }
-
-    Status = I2cMaster->Reset (I2cMaster);
-    if (EFI_ERROR (Status)) {
-      break;
-    }
-
-    BusFrequency = FixedPcdGet32 (PcdRtcI2cBusFrequency);
-    Status = I2cMaster->SetBusFrequency (I2cMaster, &BusFrequency);
-    if (EFI_ERROR (Status)) {
-      break;
-    }
-
-    mI2cMaster = I2cMaster;
-    break;
-  } while (TRUE);
+  EfiConvertPointer (0x0, (VOID **)&mRtcI2cBase);
 }
 
 EFI_STATUS
@@ -345,28 +323,60 @@ LibRtcInitialize (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
-  EFI_STATUS Status;
-  UINTN      BufferSize;
+  EFI_GCD_MEMORY_SPACE_DESCRIPTOR  Descriptor;
+  EFI_STATUS                       Status;
 
-  BufferSize = sizeof (EFI_HANDLE);
-  Status = gBS->LocateHandle (
-                  ByProtocol,
-                  &gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid,
-                  NULL,
-                  &BufferSize,
-                  &mI2cMasterHandle
-                  );
-  if (EFI_ERROR (Status)) {
-    return Status;
+  mRtcI2cBase        = (VOID *)(UINTN)FixedPcdGet64 (PcdRtcI2cControllerBase);
+  mRtcI2cInputClockHz = gPlatformGetClockPpi.PlatformGetClock (NXP_I2C_CLOCK, 0);
+  mRtcRuntimeReady    = FALSE;
+  if ((mRtcI2cBase == NULL) || (mRtcI2cInputClockHz == 0)) {
+    DEBUG ((DEBUG_ERROR, "%a: RTC controller base/clock unavailable\n", __func__));
+    return EFI_SUCCESS;
   }
 
-  EfiCreateProtocolNotifyEvent (
-    &gEfiI2cMasterProtocolGuid,
-    TPL_CALLBACK,
-    I2cDriverRegistrationEvent,
-    NULL,
-    &mDriverEventRegistration
-    );
+  Status = gDS->GetMemorySpaceDescriptor ((EFI_PHYSICAL_ADDRESS)(UINTN)mRtcI2cBase, &Descriptor);
+  if (EFI_ERROR (Status)) {
+    Status = gDS->AddMemorySpace (
+                    EfiGcdMemoryTypeMemoryMappedIo,
+                    (EFI_PHYSICAL_ADDRESS)(UINTN)mRtcI2cBase,
+                    FixedPcdGet32 (PcdRtcI2cControllerSize),
+                    EFI_MEMORY_UC | EFI_MEMORY_RUNTIME
+                    );
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_WARN, "%a: AddMemorySpace failed: %r, runtime RTC disabled\n", __func__, Status));
+      return EFI_SUCCESS;
+    }
 
+    Status = gDS->GetMemorySpaceDescriptor ((EFI_PHYSICAL_ADDRESS)(UINTN)mRtcI2cBase, &Descriptor);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_WARN, "%a: GetMemorySpaceDescriptor after add failed: %r, runtime RTC disabled\n", __func__, Status));
+      return EFI_SUCCESS;
+    }
+  }
+
+  Status = gDS->SetMemorySpaceAttributes (
+                  (EFI_PHYSICAL_ADDRESS)(UINTN)mRtcI2cBase,
+                  FixedPcdGet32 (PcdRtcI2cControllerSize),
+                  Descriptor.Attributes | EFI_MEMORY_RUNTIME
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "%a: SetMemorySpaceAttributes failed: %r, runtime RTC disabled\n", __func__, Status));
+    return EFI_SUCCESS;
+  }
+
+  Status = gBS->CreateEventEx (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_NOTIFY,
+                  VirtualNotifyEvent,
+                  NULL,
+                  &gEfiEventVirtualAddressChangeGuid,
+                  &mRtcVirtualAddrChangeEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "%a: CreateEventEx failed: %r, runtime RTC disabled\n", __func__, Status));
+    return EFI_SUCCESS;
+  }
+
+  mRtcRuntimeReady = TRUE;
   return EFI_SUCCESS;
 }

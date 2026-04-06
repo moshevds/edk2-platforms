@@ -22,22 +22,24 @@
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
 
 [LibraryClasses]
+  BaseLib
   BaseMemoryLib
   DebugLib
+  DxeServicesTableLib
+  I2cLib
   UefiBootServicesTableLib
-  UefiLib
+  UefiRuntimeLib
 
-[Protocols]
-  gEfiI2cMasterProtocolGuid                          ## CONSUMES
-  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## CONSUMES
+[Guids]
+  gEfiEventVirtualAddressChangeGuid
 
 [FixedPcd]
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cControllerBase
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cControllerSize
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cSlaveAddress
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxSlaveAddress
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxChannel
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cBusFrequency
-
-[Depex]
-  gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid

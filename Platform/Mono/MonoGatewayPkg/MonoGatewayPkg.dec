@@ -18,6 +18,8 @@
   gMonoDtManagerProtocolGuid = { 0xd51a3f50, 0x1d0b, 0x495f, { 0x91, 0x5b, 0x7b, 0xfd, 0x0a, 0xf1, 0xb3, 0x7f } }
 
 [PcdsFixedAtBuild]
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cControllerBase|0x021A0000|UINT64|0x00000000
+  gMonoGatewayTokenSpaceGuid.PcdRtcI2cControllerSize|0x00010000|UINT32|0x00000005
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cSlaveAddress|0x53|UINT8|0x00000001
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxSlaveAddress|0x70|UINT8|0x00000002
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxChannel|0x04|UINT8|0x00000003
