@@ -23,6 +23,7 @@
 #define GIC_VERSION       2
 #define GICD_BASE         0x01410000
 #define GICC_BASE         0x01420000
+#define GICC_ACPI_BASE    0x0142F000
 #define GICH_BASE         0x01440000
 #define GICV_BASE         0x01460000
 
@@ -48,7 +49,7 @@
 
 #define PLAT_GIC_VERSION                GIC_VERSION
 #define PLAT_GICD_BASE                  GICD_BASE
-#define PLAT_GICC_BASE                  GICC_BASE
+#define PLAT_GICC_BASE                  GICC_ACPI_BASE
 #define PLAT_GICH_BASE                  GICH_BASE
 #define PLAT_GICV_BASE                  GICV_BASE
 
@@ -84,7 +85,7 @@
   0,                        /* UINT32  ParkingProtocolVersion     */  \
   PmuIrq,                   /* UINT32  PerformanceInterruptGsiv   */  \
   0,                        /* UINT64  ParkedAddress              */  \
-  GICC_BASE,                /* UINT64  PhysicalBaseAddress        */  \
+  GICC_ACPI_BASE,           /* UINT64  PhysicalBaseAddress        */  \
   GICV_BASE,                /* UINT64  GICV                       */  \
   GICH_BASE,                /* UINT64  GICH                       */  \
   VGicIrq,                  /* UINT32  VGICMaintenanceInterrupt   */  \
