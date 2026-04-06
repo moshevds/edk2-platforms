@@ -5,7 +5,9 @@
 **/
 
 #include <IndustryStandard/MemoryMappedConfigurationSpaceAccessTable.h>
+#include <IndustryStandard/DebugPort2Table.h>
 #include <IndustryStandard/SerialPortConsoleRedirectionTable.h>
+#include <Library/BaseLib.h>
 #include <Library/DebugLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Protocol/ConfigurationManagerProtocol.h>
@@ -44,9 +46,23 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
       CFG_MGR_TABLE_ID
     },
     {
+      EFI_ACPI_6_2_DEBUG_PORT_2_TABLE_SIGNATURE,
+      EFI_ACPI_DEBUG_PORT_2_TABLE_REVISION,
+      CREATE_STD_ACPI_TABLE_GEN_ID (EStdAcpiTableIdDbg2),
+      NULL,
+      CFG_MGR_TABLE_ID
+    },
+    {
       EFI_ACPI_6_2_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_SIGNATURE,
       EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_REVISION_4,
       CREATE_STD_ACPI_TABLE_GEN_ID (EStdAcpiTableIdSpcr),
+      NULL,
+      CFG_MGR_TABLE_ID
+    },
+    {
+      EFI_ACPI_6_2_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_STRUCTURE_SIGNATURE,
+      EFI_ACPI_6_2_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_REVISION,
+      CREATE_STD_ACPI_TABLE_GEN_ID (EStdAcpiTableIdPptt),
       NULL,
       CFG_MGR_TABLE_ID
     },
@@ -58,7 +74,7 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
       CFG_MGR_TABLE_ID
     },
   },
-  { EFI_ACPI_6_2_ARM_PSCI_COMPLIANT },
+  { MONO_PSCI_BOOT_ARCH_FLAGS },
   { EFI_ACPI_6_2_PM_PROFILE_ENTERPRISE_SERVER },
   {
     TIMER_BASE_ADDRESS,
@@ -86,6 +102,82 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
 
 STATIC
 EFI_STATUS
+ValidatePlatformRepository (
+  IN CONST MONO_PLATFORM_REPOSITORY_INFO  *PlatformRepo
+  )
+{
+  UINTN   Index;
+  UINT64  MpidrBitmap;
+
+  if (PlatformRepo == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (PlatformRepo->BootArchInfo.BootArchFlags != MONO_PSCI_BOOT_ARCH_FLAGS) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "MONO ACPI: FADT ARM_BOOT_ARCH mismatch actual=0x%x expected=0x%x\n",
+      PlatformRepo->BootArchInfo.BootArchFlags,
+      MONO_PSCI_BOOT_ARCH_FLAGS
+      ));
+    return EFI_PROTOCOL_ERROR;
+  }
+
+  MpidrBitmap = 0;
+  for (Index = 0; Index < ARRAY_SIZE (PlatformRepo->GicCInfo); Index++) {
+    CONST CM_ARM_GICC_INFO  *Gicc;
+    UINT32                  AcpiProcessorUid;
+    UINT64                  Mpidr;
+
+    Gicc = &PlatformRepo->GicCInfo[Index];
+    AcpiProcessorUid = Gicc->AcpiProcessorUid;
+    Mpidr = Gicc->MPIDR;
+
+    if ((Gicc->Flags & EFI_ACPI_6_2_GIC_ENABLED) == 0) {
+      DEBUG ((DEBUG_ERROR, "MONO ACPI: CPU%u MADT entry is not enabled\n", (UINT32)Index));
+      return EFI_PROTOCOL_ERROR;
+    }
+
+    if (AcpiProcessorUid != Index) {
+      DEBUG ((
+        DEBUG_ERROR,
+        "MONO ACPI: CPU%u UID mismatch actual=%u expected=%u\n",
+        (UINT32)Index,
+        AcpiProcessorUid,
+        (UINT32)Index
+        ));
+      return EFI_PROTOCOL_ERROR;
+    }
+
+    if (Mpidr != Index) {
+      DEBUG ((
+        DEBUG_ERROR,
+        "MONO ACPI: CPU%u MPIDR mismatch actual=0x%Lx expected=0x%x\n",
+        (UINT32)Index,
+        Mpidr,
+        (UINT32)Index
+        ));
+      return EFI_PROTOCOL_ERROR;
+    }
+
+    if ((Mpidr >= 64) || ((MpidrBitmap & LShiftU64 (BIT0, (UINTN)Mpidr)) != 0)) {
+      DEBUG ((DEBUG_ERROR, "MONO ACPI: CPU%u MPIDR 0x%Lx is not unique\n", (UINT32)Index, Mpidr));
+      return EFI_PROTOCOL_ERROR;
+    }
+
+    MpidrBitmap |= LShiftU64 (BIT0, (UINTN)Mpidr);
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO ACPI: Validated PSCI(SMC), GTDT present, MADT CPUs=%u UID/MPIDR map=[0,1,2,3]\n",
+    (UINT32)ARRAY_SIZE (PlatformRepo->GicCInfo)
+    ));
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
 EFIAPI
 InitializePlatformRepository (
   IN CONST EDKII_CONFIGURATION_MANAGER_PROTOCOL  * CONST This
@@ -109,11 +201,11 @@ InitializePlatformRepository (
     ));
   DEBUG ((
     DEBUG_INFO,
-    "MONO ACPI: TableList count=%u includes FADT/GTDT/MADT/MCFG/SPCR/DSDT\n",
+    "MONO ACPI: TableList count=%u includes FADT/GTDT/MADT/MCFG/SPCR/PPTT/DSDT\n",
     (UINT32)ARRAY_SIZE (PlatformRepo->CmAcpiTableList)
     ));
 
-  return EFI_SUCCESS;
+  return ValidatePlatformRepository (PlatformRepo);
 }
 
 STATIC
@@ -235,6 +327,17 @@ GetArchCommonNameSpaceObject (
       DEBUG ((
         DEBUG_INFO,
         "MONO ACPI: Get ConsolePort base=0x%Lx irq=%u baud=%Lu clock=%u subtype=0x%x\n",
+        PlatformRepo->SpcrSerialPort.BaseAddress,
+        PlatformRepo->SpcrSerialPort.Interrupt,
+        PlatformRepo->SpcrSerialPort.BaudRate,
+        PlatformRepo->SpcrSerialPort.Clock,
+        PlatformRepo->SpcrSerialPort.PortSubtype
+        ));
+      return HandleCmObject (CmObjectId, &PlatformRepo->SpcrSerialPort, sizeof (PlatformRepo->SpcrSerialPort), 1, CmObject);
+    case EArchCommonObjSerialDebugPortInfo:
+      DEBUG ((
+        DEBUG_INFO,
+        "MONO ACPI: Get SerialDebugPort base=0x%Lx irq=%u baud=%Lu clock=%u subtype=0x%x\n",
         PlatformRepo->SpcrSerialPort.BaseAddress,
         PlatformRepo->SpcrSerialPort.Interrupt,
         PlatformRepo->SpcrSerialPort.BaudRate,

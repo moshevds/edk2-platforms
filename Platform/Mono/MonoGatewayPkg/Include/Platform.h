@@ -53,6 +53,15 @@
 #define PLAT_GICV_BASE                  GICV_BASE
 
 #define PLAT_CPU_COUNT                  4
+#define MONO_CPU0_UID                   0
+#define MONO_CPU1_UID                   1
+#define MONO_CPU2_UID                   2
+#define MONO_CPU3_UID                   3
+#define MONO_CPU0_MPIDR                 0x0ULL
+#define MONO_CPU1_MPIDR                 0x1ULL
+#define MONO_CPU2_MPIDR                 0x2ULL
+#define MONO_CPU3_MPIDR                 0x3ULL
+#define MONO_PSCI_BOOT_ARCH_FLAGS       EFI_ACPI_6_2_ARM_PSCI_COMPLIANT
 #define PLAT_GTBLOCK_COUNT              0
 #define PLAT_GTFRAME_COUNT              0
 #define PLAT_PCI_CONFG_COUNT            1
@@ -85,10 +94,10 @@
 }
 
 #define PLAT_GIC_CPU_INTERFACE    {                         \
-  GICC_ENTRY (0, 0x0, 106, 25, 0),                         \
-  GICC_ENTRY (1, 0x1, 107, 25, 0),                         \
-  GICC_ENTRY (2, 0x2,  95, 25, 0),                         \
-  GICC_ENTRY (3, 0x3,  97, 25, 0)                          \
+  GICC_ENTRY (MONO_CPU0_UID, MONO_CPU0_MPIDR, 106, 25, 0), \
+  GICC_ENTRY (MONO_CPU1_UID, MONO_CPU1_MPIDR, 107, 25, 0), \
+  GICC_ENTRY (MONO_CPU2_UID, MONO_CPU2_MPIDR,  95, 25, 0), \
+  GICC_ENTRY (MONO_CPU3_UID, MONO_CPU3_MPIDR,  97, 25, 0)  \
 }
 
 #define PLAT_TIMER_BLOCK_INFO  { }
@@ -129,5 +138,9 @@
     UART_LEN,                                                                     \
     1                                                                             \
   }
+
+STATIC_ASSERT (PLAT_CPU_COUNT == 4, "MonoGatewayPkg ACPI tables assume four CPUs");
+STATIC_ASSERT ((MONO_PSCI_BOOT_ARCH_FLAGS & EFI_ACPI_6_2_ARM_PSCI_COMPLIANT) != 0, "PSCI must be advertised in FADT");
+STATIC_ASSERT ((MONO_PSCI_BOOT_ARCH_FLAGS & EFI_ACPI_6_2_ARM_PSCI_USE_HVC) == 0, "MonoGatewayPkg expects PSCI over SMC");
 
 #endif

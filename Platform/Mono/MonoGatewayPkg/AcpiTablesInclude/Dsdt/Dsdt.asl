@@ -8,11 +8,43 @@
 
 DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_OEM_REVISION) {
   Scope (_SB) {
+    Device (C000) {
+      Name (_HID, "ACPI0007")
+      Name (_UID, MONO_CPU0_UID)
+      Method (_STA, 0, NotSerialized) {
+        Return (0x0F)
+      }
+    }
+
+    Device (C001) {
+      Name (_HID, "ACPI0007")
+      Name (_UID, MONO_CPU1_UID)
+      Method (_STA, 0, NotSerialized) {
+        Return (0x0F)
+      }
+    }
+
+    Device (C002) {
+      Name (_HID, "ACPI0007")
+      Name (_UID, MONO_CPU2_UID)
+      Method (_STA, 0, NotSerialized) {
+        Return (0x0F)
+      }
+    }
+
+    Device (C003) {
+      Name (_HID, "ACPI0007")
+      Name (_UID, MONO_CPU3_UID)
+      Method (_STA, 0, NotSerialized) {
+        Return (0x0F)
+      }
+    }
+
     Device (DUA0) {
       Name (_HID, "NXP0018")
       Name (_UID, Zero)
       Name (_CCA, Zero)
-      Method (_STA) {
+      Method (_STA, 0, NotSerialized) {
         Return (0x0F)
       }
 

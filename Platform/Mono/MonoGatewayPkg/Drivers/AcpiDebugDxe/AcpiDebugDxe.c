@@ -18,6 +18,11 @@
 STATIC EFI_EVENT  mReadyToBootEvent;
 STATIC EFI_EVENT  mExitBootServicesEvent;
 
+typedef struct {
+  UINT8    Type;
+  UINT8    Length;
+} MONO_ACPI_SUBTABLE_HEADER;
+
 STATIC
 VOID
 DumpSignature (
@@ -48,6 +53,14 @@ DumpAcpiTables (
   UINTN                                       Index;
   EFI_ACPI_DESCRIPTION_HEADER                 *Hdr;
   EFI_ACPI_6_2_FIXED_ACPI_DESCRIPTION_TABLE   *Fadt;
+  EFI_ACPI_6_2_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER  *Madt;
+  EFI_ACPI_6_2_GENERIC_TIMER_DESCRIPTION_TABLE         *Gtdt;
+  MONO_ACPI_SUBTABLE_HEADER                    *Subtable;
+  MONO_ACPI_SUBTABLE_HEADER                    *SubtableEnd;
+  EFI_ACPI_6_2_GIC_STRUCTURE                   *Gicc;
+  EFI_ACPI_6_2_GIC_DISTRIBUTOR_STRUCTURE       *Gicd;
+  EFI_ACPI_6_2_GICR_STRUCTURE                  *Gicr;
+  EFI_ACPI_6_2_GIC_ITS_STRUCTURE               *GicIts;
   EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE    *Spcr;
   EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_4  *Spcr4;
 
@@ -101,6 +114,151 @@ DumpAcpiTables (
         Fadt->XDsdt,
         Fadt->ArmBootArch
         ));
+    } else if (Hdr->Signature == EFI_ACPI_6_2_GENERIC_TIMER_DESCRIPTION_TABLE_SIGNATURE) {
+      Gtdt = (EFI_ACPI_6_2_GENERIC_TIMER_DESCRIPTION_TABLE *)Hdr;
+      DEBUG ((
+        DEBUG_INFO,
+        "MONO ACPI DBG [%a]:   GTDT CntCtlBase=0x%Lx Secure=%u NonSecure=%u Virtual=%u Hypervisor=%u Flags=[0x%x 0x%x 0x%x 0x%x]\n",
+        Phase,
+        Gtdt->CntControlBasePhysicalAddress,
+        Gtdt->SecurePL1TimerGSIV,
+        Gtdt->NonSecurePL1TimerGSIV,
+        Gtdt->VirtualTimerGSIV,
+        Gtdt->NonSecurePL2TimerGSIV,
+        Gtdt->SecurePL1TimerFlags,
+        Gtdt->NonSecurePL1TimerFlags,
+        Gtdt->VirtualTimerFlags,
+        Gtdt->NonSecurePL2TimerFlags
+        ));
+    } else if (Hdr->Signature == EFI_ACPI_6_2_MULTIPLE_APIC_DESCRIPTION_TABLE_SIGNATURE) {
+      Madt = (EFI_ACPI_6_2_MULTIPLE_APIC_DESCRIPTION_TABLE_HEADER *)Hdr;
+      DEBUG ((
+        DEBUG_INFO,
+        "MONO ACPI DBG [%a]:   MADT GicBase=0x%x Flags=0x%x\n",
+        Phase,
+        Madt->LocalApicAddress,
+        Madt->Flags
+        ));
+
+      Subtable = (MONO_ACPI_SUBTABLE_HEADER *)((UINT8 *)Madt + sizeof (*Madt));
+      SubtableEnd = (MONO_ACPI_SUBTABLE_HEADER *)((UINT8 *)Madt + Madt->Header.Length);
+      while (Subtable < SubtableEnd) {
+        if ((Subtable->Length < sizeof (MONO_ACPI_SUBTABLE_HEADER)) ||
+            ((UINT8 *)Subtable + Subtable->Length > (UINT8 *)SubtableEnd))
+        {
+          DEBUG ((
+            DEBUG_ERROR,
+            "MONO ACPI DBG [%a]:   MADT malformed subtable Type=%u Len=0x%x\n",
+            Phase,
+            Subtable->Type,
+            Subtable->Length
+            ));
+          break;
+        }
+
+        switch (Subtable->Type) {
+          case EFI_ACPI_6_2_GIC:
+            if (Subtable->Length < sizeof (EFI_ACPI_6_2_GIC_STRUCTURE)) {
+              DEBUG ((
+                DEBUG_ERROR,
+                "MONO ACPI DBG [%a]:   GICC subtable too short Len=0x%x\n",
+                Phase,
+                Subtable->Length
+                ));
+              break;
+            }
+
+            Gicc = (EFI_ACPI_6_2_GIC_STRUCTURE *)Subtable;
+            DEBUG ((
+              DEBUG_INFO,
+              "MONO ACPI DBG [%a]:   GICC CpuIf=%u Uid=%u Flags=0x%x Mpidr=0x%Lx Base=0x%Lx GICV=0x%Lx GICH=0x%Lx VGicIrq=%u PmuIrq=%u\n",
+              Phase,
+              Gicc->CPUInterfaceNumber,
+              Gicc->AcpiProcessorUid,
+              Gicc->Flags,
+              Gicc->MPIDR,
+              Gicc->PhysicalBaseAddress,
+              Gicc->GICV,
+              Gicc->GICH,
+              Gicc->VGICMaintenanceInterrupt,
+              Gicc->PerformanceInterruptGsiv
+              ));
+            break;
+          case EFI_ACPI_6_2_GICD:
+            if (Subtable->Length < sizeof (EFI_ACPI_6_2_GIC_DISTRIBUTOR_STRUCTURE)) {
+              DEBUG ((
+                DEBUG_ERROR,
+                "MONO ACPI DBG [%a]:   GICD subtable too short Len=0x%x\n",
+                Phase,
+                Subtable->Length
+                ));
+              break;
+            }
+
+            Gicd = (EFI_ACPI_6_2_GIC_DISTRIBUTOR_STRUCTURE *)Subtable;
+            DEBUG ((
+              DEBUG_INFO,
+              "MONO ACPI DBG [%a]:   GICD Id=%u Base=0x%Lx SysVecBase=0x%x Version=%u\n",
+              Phase,
+              Gicd->GicId,
+              Gicd->PhysicalBaseAddress,
+              Gicd->SystemVectorBase,
+              Gicd->GicVersion
+              ));
+            break;
+          case EFI_ACPI_6_2_GICR:
+            if (Subtable->Length < sizeof (EFI_ACPI_6_2_GICR_STRUCTURE)) {
+              DEBUG ((
+                DEBUG_ERROR,
+                "MONO ACPI DBG [%a]:   GICR subtable too short Len=0x%x\n",
+                Phase,
+                Subtable->Length
+                ));
+              break;
+            }
+
+            Gicr = (EFI_ACPI_6_2_GICR_STRUCTURE *)Subtable;
+            DEBUG ((
+              DEBUG_INFO,
+              "MONO ACPI DBG [%a]:   GICR Base=0x%Lx Length=0x%x\n",
+              Phase,
+              Gicr->DiscoveryRangeBaseAddress,
+              Gicr->DiscoveryRangeLength
+              ));
+            break;
+          case EFI_ACPI_6_2_GIC_ITS:
+            if (Subtable->Length < sizeof (EFI_ACPI_6_2_GIC_ITS_STRUCTURE)) {
+              DEBUG ((
+                DEBUG_ERROR,
+                "MONO ACPI DBG [%a]:   GITS subtable too short Len=0x%x\n",
+                Phase,
+                Subtable->Length
+                ));
+              break;
+            }
+
+            GicIts = (EFI_ACPI_6_2_GIC_ITS_STRUCTURE *)Subtable;
+            DEBUG ((
+              DEBUG_INFO,
+              "MONO ACPI DBG [%a]:   GITS Id=%u Base=0x%Lx\n",
+              Phase,
+              GicIts->GicItsId,
+              GicIts->PhysicalBaseAddress
+              ));
+            break;
+          default:
+            DEBUG ((
+              DEBUG_INFO,
+              "MONO ACPI DBG [%a]:   MADT subtable Type=%u Len=0x%x\n",
+              Phase,
+              Subtable->Type,
+              Subtable->Length
+              ));
+            break;
+        }
+
+        Subtable = (MONO_ACPI_SUBTABLE_HEADER *)((UINT8 *)Subtable + Subtable->Length);
+      }
     } else if (Hdr->Signature == EFI_ACPI_6_2_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_SIGNATURE) {
       Spcr = (EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE *)Hdr;
       if (Hdr->Revision >= EFI_ACPI_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_REVISION_4) {
