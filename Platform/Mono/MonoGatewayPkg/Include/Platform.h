@@ -29,7 +29,7 @@
 #define UART0_BASE        0x021C0500
 #define UART0_IT          54
 #define UART_LEN          0x100
-#define UART0_CLOCK       100000000
+#define UART0_CLOCK       300000000
 
 #define TIMER_BASE_ADDRESS       MAX_UINT64
 #define TIMER_READ_BASE_ADDRESS  MAX_UINT64
