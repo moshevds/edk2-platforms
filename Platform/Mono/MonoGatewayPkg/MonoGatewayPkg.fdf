@@ -98,6 +98,12 @@ READ_LOCK_STATUS   = TRUE
   INF EmbeddedPkg/RealTimeClockRuntimeDxe/RealTimeClockRuntimeDxe.inf
   INF MdeModulePkg/Universal/Metronome/Metronome.inf
   INF MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
+  INF MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
+  INF MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
+  INF Platform/Mono/MonoGatewayPkg/Acpi/ConfigurationManagerDxe/ConfigurationManagerDxe.inf
+  INF Platform/Mono/MonoGatewayPkg/Drivers/AcpiDebugDxe/AcpiDebugDxe.inf
+  INF DynamicTablesPkg/Drivers/DynamicTableFactoryDxe/DynamicTableFactoryDxe.inf
+  INF DynamicTablesPkg/Drivers/DynamicTableManagerDxe/DynamicTableManagerDxe.inf
 
   #
   # Board-specific platform discovery must run before RTC dispatch.

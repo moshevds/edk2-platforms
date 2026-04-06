@@ -1,0 +1,35 @@
+## @file
+#  Mono Gateway ACPI debug dump driver.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = MonoAcpiDebugDxe
+  FILE_GUID      = 9f6bd0f6-d3df-4a65-a2ea-8aa3cc60dcf4
+  MODULE_TYPE    = DXE_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = AcpiDebugDxeEntryPoint
+
+[Sources]
+  AcpiDebugDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[Guids]
+  gEfiAcpi20TableGuid
+  gEfiEventReadyToBootGuid
+  gEfiEventExitBootServicesGuid
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  UefiRuntimeServicesTableLib
+  UefiLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE

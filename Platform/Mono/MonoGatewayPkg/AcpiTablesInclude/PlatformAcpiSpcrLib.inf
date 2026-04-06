@@ -1,0 +1,32 @@
+## @file
+#  Mono Gateway SPCR generator
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = MonoPlatformAcpiSpcrLib
+  FILE_GUID      = 47a6df71-c4bb-4ddc-8cbc-42c165d93d05
+  VERSION_STRING = 1.0
+  MODULE_TYPE    = DXE_DRIVER
+  LIBRARY_CLASS  = NULL|DXE_DRIVER
+  CONSTRUCTOR    = AcpiSpcrLibConstructor
+  DESTRUCTOR     = AcpiSpcrLibDestructor
+
+[Sources]
+  PlatformAcpiSpcrLib/SpcrGenerator.c
+
+[Packages]
+  DynamicTablesPkg/DynamicTablesPkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  AcpiHelperLib
+  BaseLib
+  DebugLib
+  MemoryAllocationLib
+  TableHelperLib

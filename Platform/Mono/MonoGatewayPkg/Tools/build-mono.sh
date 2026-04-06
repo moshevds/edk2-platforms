@@ -57,6 +57,23 @@ if ! command -v dtc >/dev/null 2>&1; then
   fi
 fi
 
+if ! command -v iasl >/dev/null 2>&1; then
+  IASL_CANDIDATE="$(
+    {
+      find "${YOCTO_TMP_DIR}" -path '*acpica-native*/recipe-sysroot-native/usr/bin/iasl' -type f
+      find "${YOCTO_TMP_DIR}" -path '*acpica-native*/image/usr/bin/iasl' -type f
+      find "${YOCTO_TMP_DIR}" -path '*acpica-native*/packages-split/*/usr/bin/iasl' -type f
+      find "${YOCTO_TMP_DIR}" -path '*recipe-sysroot-native/usr/bin/iasl' -type f
+    } | head -n 1 || true
+  )"
+  if [[ -n "${IASL_CANDIDATE}" ]]; then
+    export PATH="${IASL_CANDIDATE%/iasl}:${PATH}"
+  else
+    echo "iasl not found; install it on the host or build Yocto target acpica-native so AML-backed ACPI tables can be generated" >&2
+    exit 1
+  fi
+fi
+
 export WORKSPACE="${WORKSPACE_DIR}"
 export PACKAGES_PATH="${WORKSPACE_DIR}:${PLATFORMS_DIR}"
 export CCACHE_DISABLE=1
