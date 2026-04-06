@@ -30,7 +30,6 @@
   IoLib
   MemoryAllocationLib
   NonDiscoverableDeviceRegistrationLib
-  TimerLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
 
@@ -41,7 +40,6 @@
 
 [Guids]
   gEfiEndOfDxeEventGroupGuid
-  gEfiEventExitBootServicesGuid
 
 [Depex]
   TRUE

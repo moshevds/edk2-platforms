@@ -49,17 +49,6 @@
 #define USB3_ENABLE_BEAT_BURST_MASK            0xFF
 #define USB3_SET_BEAT_BURST_LIMIT              0xF00
 
-/* xHCI capability / operational register definitions */
-#define XHCI_CAPLENGTH_MASK                    0x000000FF
-#define XHCI_USBCMD_OFFSET                     0x0000
-#define XHCI_USBSTS_OFFSET                     0x0004
-#define XHCI_CMD_RUN                           BIT0
-#define XHCI_CMD_RESET                         BIT1
-#define XHCI_STS_HALT                          BIT0
-#define XHCI_STS_CNR                           BIT11
-#define XHCI_MAX_HALT_USEC                     16000
-#define XHCI_MAX_RESET_USEC                    250000
-
 typedef struct {
   UINT32 GEvntAdrLo;
   UINT32 GEvntAdrHi;
