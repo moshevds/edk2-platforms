@@ -74,10 +74,13 @@ typedef struct {
 #define MONO_GATEWAY_CAAM_SIZE                0x100000
 #define MONO_GATEWAY_CAAM_JR0_PHYS_ADDRESS    0x1710000
 #define MONO_GATEWAY_CAAM_JR_SIZE             0x10000
+#define MONO_CAAM_ENABLE                      0
 
 STATIC ADDRESS_SPACE_DESCRIPTOR mI2cDesc[MONO_GATEWAY_I2C_NUM_CONTROLLERS];
 STATIC FMAN_DESCRIPTOR_SET      mFmanDesc[MONO_GATEWAY_FMAN_NUM_CONTROLLERS];
+#if MONO_CAAM_ENABLE
 STATIC CAAM_DESCRIPTOR_SET      mCaamDesc;
+#endif
 
 STATIC
 VOID
@@ -248,6 +251,7 @@ PopulateFmanInformation (
   mFmanDesc[4].EndDesc = ACPI_END_TAG_DESCRIPTOR;
 }
 
+#if MONO_CAAM_ENABLE
 STATIC
 VOID
 PopulateCaamInformation (
@@ -258,6 +262,7 @@ PopulateCaamInformation (
   PopulateMmioDescriptor (&mCaamDesc.Desc[1], MONO_GATEWAY_CAAM_JR0_PHYS_ADDRESS, MONO_GATEWAY_CAAM_JR_SIZE);
   mCaamDesc.EndDesc = ACPI_END_TAG_DESCRIPTOR;
 }
+#endif
 
 EFI_STATUS
 EFIAPI
@@ -273,7 +278,9 @@ PlatformDxeEntryPoint (
   LogPsciCapabilities ();
   PopulateI2cInformation ();
   PopulateFmanInformation ();
+#if MONO_CAAM_ENABLE
   PopulateCaamInformation ();
+#endif
 
   for (Index = 0; Index < ARRAY_SIZE (mI2cDesc); Index++) {
     Handle = NULL;
@@ -306,6 +313,7 @@ PlatformDxeEntryPoint (
     }
   }
 
+#if MONO_CAAM_ENABLE
   Handle = NULL;
   Status = RegisterDevice (&gNxpNonDiscoverableCaamGuid, (ADDRESS_SPACE_DESCRIPTOR *)&mCaamDesc, &Handle);
   ASSERT_EFI_ERROR (Status);
@@ -323,6 +331,9 @@ PlatformDxeEntryPoint (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+#else
+  DEBUG ((DEBUG_INFO, "MONO CAAM: disabled for isolation testing; not registering CAAM device or ready protocol\n"));
+#endif
 
   return EFI_SUCCESS;
 }
