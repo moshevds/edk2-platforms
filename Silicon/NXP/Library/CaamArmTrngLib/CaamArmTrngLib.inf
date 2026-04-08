@@ -1,0 +1,41 @@
+## @file
+#  CAAM-backed implementation of ArmTrngLib for NXP QorIQ platforms.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = CaamArmTrngLib
+  FILE_GUID                      = 1bf6b6cf-8bcd-4b1f-9a48-9e2d3d2c9507
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = ArmTrngLib|DXE_DRIVER
+
+[Sources]
+  CaamArmTrngLib.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  DmaLib
+  IoLib
+  MemoryAllocationLib
+  TimerLib
+  UefiBootServicesTableLib
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid  ## CONSUMES
+
+[Guids]
+  gNxpNonDiscoverableCaamGuid              ## CONSUMES

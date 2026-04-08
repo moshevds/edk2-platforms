@@ -42,9 +42,12 @@
 
 [Guids]
   gNxpNonDiscoverableI2cMasterGuid
+  gNxpNonDiscoverableFmanNetGuid
+  gNxpNonDiscoverableCaamGuid
 
 [Protocols]
   gEdkiiNonDiscoverableDeviceProtocolGuid        ## PRODUCES
+  gNxpCaamReadyProtocolGuid                      ## PRODUCES
   gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## PRODUCES
 
 [Depex]

@@ -1,0 +1,60 @@
+## @file
+#
+#  FMan MEMAC Simple Network Protocol driver for NXP QorIQ platforms.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = FmanDxe
+  FILE_GUID                      = ccf7de2b-2285-4b4f-a8fd-d8ab320f0b4f
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 0.1
+  ENTRY_POINT                    = FmanEntryPoint
+
+[Sources]
+  DriverBinding.c
+  FmanDxe.h
+  FmanHw.c
+  SimpleNetwork.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  MdePkg/MdePkg.dec
+  NetworkPkg/NetworkPkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DmaLib
+  DevicePathLib
+  DxeServicesLib
+  GpioLib
+  IoLib
+  MemoryAllocationLib
+  NetLib
+  PrintLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiDriverBindingProtocolGuid
+  gEfiI2cMasterProtocolGuid
+  gEfiSimpleNetworkProtocolGuid
+
+[Guids]
+  gMonoNetConfigGuid                    ## CONSUMES
+  gNxpNonDiscoverableI2cMasterGuid       ## CONSUMES
+  gNxpNonDiscoverableFmanNetGuid         ## TO_START

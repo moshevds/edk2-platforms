@@ -112,6 +112,7 @@ READ_LOCK_STATUS   = TRUE
   INF Platform/Mono/MonoGatewayPkg/Drivers/PlatformDxe/PlatformDxe.inf
   INF Platform/Mono/MonoGatewayPkg/Drivers/MonoSelfTestDxe/MonoSelfTestDxe.inf
   INF Platform/Mono/MonoGatewayPkg/Drivers/MonoDtManagerDxe/MonoDtManagerDxe.inf
+  INF Platform/Mono/MonoGatewayPkg/Drivers/MonoAcpiManagerDxe/MonoAcpiManagerDxe.inf
 
   #
   # Multiple Console IO support
@@ -148,6 +149,11 @@ READ_LOCK_STATUS   = TRUE
   INF Silicon/NXP/Drivers/UsbHcdInitDxe/UsbHcd.inf
 
   #
+  # Networking stack
+  #
+!include NetworkPkg/Network.fdf.inc
+
+  #
   # UEFI application (Shell Embedded Boot Loader)
   #
   INF Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
@@ -156,6 +162,10 @@ READ_LOCK_STATUS   = TRUE
 
   FILE FREEFORM = 4b0eb03f-5585-4fb5-aebe-0fc634459d21 {
     SECTION RAW = Platform/Mono/MonoGatewayPkg/DeviceTree/mono-gateway-dk-from-kernel-itb.dtb
+  }
+
+  FILE FREEFORM = 5f0b8d16-8c6f-4c8a-8d77-cdbdb16d8d80 {
+    SECTION RAW = Platform/Mono/MonoGatewayPkg/Firmware/fsl_fman_ucode_ls1046_r1.0_108_4_9.bin
   }
 
   #
