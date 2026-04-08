@@ -137,6 +137,8 @@ READ_LOCK_STATUS   = TRUE
 
   INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
   INF Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
+  INF SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf
+  INF Silicon/NXP/Drivers/Net/FmanDxe/FmanDxe.inf
 
   #
   # USB Support

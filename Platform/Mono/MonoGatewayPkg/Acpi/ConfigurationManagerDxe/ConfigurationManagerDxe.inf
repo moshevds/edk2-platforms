@@ -35,5 +35,8 @@
 [Protocols]
   gEdkiiConfigurationManagerProtocolGuid
 
+[Guids]
+  gMonoGatewayTokenSpaceGuid
+
 [Depex]
   TRUE

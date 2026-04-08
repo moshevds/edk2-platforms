@@ -1,0 +1,45 @@
+## @file
+#
+#  Register Mono ACPI management as a shell command.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = MonoAcpiManagerDxe
+  FILE_GUID                      = c6099fa9-ef4b-482e-a16d-f00f96716870
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MonoAcpiManagerDxeEntryPoint
+
+[Sources]
+  MonoAcpiManagerDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  MemoryAllocationLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Protocols]
+  gEfiAcpiSdtProtocolGuid
+  gEfiAcpiTableProtocolGuid
+  gEfiShellDynamicCommandProtocolGuid ## PRODUCES
+
+[Guids]
+  gMonoGatewayTokenSpaceGuid
+
+[Depex]
+  TRUE

@@ -91,7 +91,16 @@
   }
 
   Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
+  SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf {
+    <LibraryClasses>
+      RngLib|MdePkg/Library/BaseRngLibNull/BaseRngLibNull.inf
+  }
+  Silicon/NXP/Drivers/Net/FmanDxe/FmanDxe.inf {
+    <LibraryClasses>
+      RngLib|MdePkg/Library/BaseRngLibNull/BaseRngLibNull.inf
+  }
   Silicon/NXP/Drivers/UsbHcdInitDxe/UsbHcd.inf
+!include NetworkPkg/Network.dsc.inc
   Platform/Mono/MonoGatewayPkg/Acpi/ConfigurationManagerDxe/ConfigurationManagerDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf

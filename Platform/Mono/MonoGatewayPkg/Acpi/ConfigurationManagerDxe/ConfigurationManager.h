@@ -8,6 +8,7 @@
 #define MONO_GATEWAY_CONFIGURATION_MANAGER_H
 
 #include <Platform.h>
+#include <MonoAcpiTableConfig.h>
 #include <PlatformAcpiTableGenerator.h>
 
 #define CONFIGURATION_MANAGER_REVISION  CREATE_REVISION (0, 0)
@@ -26,9 +27,13 @@ typedef EFI_STATUS (*CM_OBJECT_HANDLER_PROC) (
 #define PLAT_OPTIONAL_ACPI_TABLES 1
 #define PLAT_ACPI_TABLE_COUNT     (CM_MANDATORY_ACPI_TABLES + PLAT_OPTIONAL_ACPI_TABLES + OEM_ACPI_TABLES)
 
+STATIC_ASSERT (PLAT_ACPI_TABLE_COUNT == MonoAcpiTableCount, "ACPI table count must match MonoAcpiTableCount");
+
 typedef struct PlatformRepositoryInfo {
   CM_STD_OBJ_CONFIGURATION_MANAGER_INFO     CmInfo;
+  CM_STD_OBJ_ACPI_TABLE_INFO                CmAcpiTableListTemplate[PLAT_ACPI_TABLE_COUNT];
   CM_STD_OBJ_ACPI_TABLE_INFO                CmAcpiTableList[PLAT_ACPI_TABLE_COUNT];
+  UINT32                                    CmAcpiTableCount;
   CM_ARM_BOOT_ARCH_INFO                     BootArchInfo;
   CM_ARCH_COMMON_POWER_MANAGEMENT_PROFILE_INFO  PmProfileInfo;
   CM_ARM_GENERIC_TIMER_INFO                 GenericTimerInfo;

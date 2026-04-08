@@ -8,6 +8,8 @@ BUILD_TYPE="${1:-DEBUG}"
 TOOLCHAIN_TAG="${TOOLCHAIN_TAG:-GCC}"
 BUILD_THREADS="${BUILD_THREADS:-1}"
 YOCTO_TMP_DIR="${YOCTO_TMP_DIR:-${PLATFORMS_DIR}/../../meta-mono/build/tmp}"
+BUILD_EXTRA_ARGS=("${@:2}")
+RUN_BASETOOLS_TESTS="${RUN_BASETOOLS_TESTS:-0}"
 
 if [[ ! -d "${WORKSPACE_DIR}" ]]; then
   echo "expected edk2 workspace at ${WORKSPACE_DIR}" >&2
@@ -79,16 +81,21 @@ export PACKAGES_PATH="${WORKSPACE_DIR}:${PLATFORMS_DIR}"
 export CCACHE_DISABLE=1
 export PYTHON_COMMAND="${PYTHON_COMMAND:-python3}"
 
-make -C "${WORKSPACE_DIR}/BaseTools"
+make -C "${WORKSPACE_DIR}/BaseTools/Source/C"
+make -C "${WORKSPACE_DIR}/BaseTools/Source/Python"
+if [[ "${RUN_BASETOOLS_TESTS}" == "1" ]]; then
+  make -C "${WORKSPACE_DIR}/BaseTools/Tests"
+fi
 
 pushd "${WORKSPACE_DIR}" >/dev/null
 set +u
-source edksetup.sh BaseTools
+source "${WORKSPACE_DIR}/edksetup.sh" BaseTools
 set -u
 build \
   -a AARCH64 \
   -t "${TOOLCHAIN_TAG}" \
   -b "${BUILD_TYPE}" \
   -n "${BUILD_THREADS}" \
-  -p "${PLATFORM_DSC}"
+  -p "${PLATFORM_DSC}" \
+  "${BUILD_EXTRA_ARGS[@]}"
 popd >/dev/null

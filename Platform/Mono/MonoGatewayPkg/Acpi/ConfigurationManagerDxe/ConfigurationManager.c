@@ -8,7 +8,9 @@
 #include <IndustryStandard/DebugPort2Table.h>
 #include <IndustryStandard/SerialPortConsoleRedirectionTable.h>
 #include <Library/BaseLib.h>
+#include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Protocol/ConfigurationManagerProtocol.h>
 
@@ -74,6 +76,10 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
       CFG_MGR_TABLE_ID
     },
   },
+  {
+    { 0 },
+  },
+  PLAT_ACPI_TABLE_COUNT,
   { MONO_PSCI_BOOT_ARCH_FLAGS },
   { EFI_ACPI_6_2_PM_PROFILE_ENTERPRISE_SERVER },
   {
@@ -99,6 +105,93 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
   PLAT_SPCR_INFO,
   0
 };
+
+STATIC CONST CHAR8  *mMonoAcpiTableNames[MonoAcpiTableCount] = {
+  "FADT",
+  "GTDT",
+  "MADT",
+  "MCFG",
+  "DBG2",
+  "SPCR",
+  "PPTT",
+  "DSDT"
+};
+
+STATIC
+UINT32
+GetDefaultAcpiTableMask (
+  VOID
+  )
+{
+  return MONO_ACPI_TABLE_MASK_ALL;
+}
+
+STATIC
+VOID
+ApplyAcpiTableMask (
+  IN OUT MONO_PLATFORM_REPOSITORY_INFO  *PlatformRepo,
+  IN     UINT32                         EnabledMask
+  )
+{
+  UINT32  Index;
+  UINT32  OutputIndex;
+
+  OutputIndex = 0;
+  for (Index = 0; Index < MonoAcpiTableCount; Index++) {
+    if ((EnabledMask & MONO_ACPI_TABLE_BIT (Index)) == 0) {
+      DEBUG ((DEBUG_INFO, "MONO ACPI: disabling %a via configuration mask\n", mMonoAcpiTableNames[Index]));
+      continue;
+    }
+
+    CopyMem (
+      &PlatformRepo->CmAcpiTableList[OutputIndex],
+      &PlatformRepo->CmAcpiTableListTemplate[Index],
+      sizeof (PlatformRepo->CmAcpiTableList[0])
+      );
+    OutputIndex++;
+  }
+
+  PlatformRepo->CmAcpiTableCount = OutputIndex;
+}
+
+STATIC
+UINT32
+LoadAcpiTableMask (
+  VOID
+  )
+{
+  MONO_ACPI_TABLE_CONFIG  Config;
+  EFI_STATUS              Status;
+  UINTN                   DataSize;
+  UINT32                  EnabledMask;
+
+  Config.Revision = 0;
+  Config.EnabledMask = 0;
+  DataSize = sizeof (Config);
+  Status = gRT->GetVariable (
+                  MONO_ACPI_TABLE_CONFIG_VARIABLE_NAME,
+                  &gMonoGatewayTokenSpaceGuid,
+                  NULL,
+                  &DataSize,
+                  &Config
+                  );
+  if (EFI_ERROR (Status)) {
+    return GetDefaultAcpiTableMask ();
+  }
+
+  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_TABLE_CONFIG_REVISION)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO ACPI: ignoring invalid table config variable size=%u revision=%u\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return GetDefaultAcpiTableMask ();
+  }
+
+  EnabledMask = Config.EnabledMask & MONO_ACPI_TABLE_MASK_ALL;
+  return EnabledMask;
+}
 
 STATIC
 EFI_STATUS
@@ -184,9 +277,12 @@ InitializePlatformRepository (
   )
 {
   MONO_PLATFORM_REPOSITORY_INFO  *PlatformRepo;
+  UINT32                         EnabledMask;
 
   PlatformRepo = This->PlatRepoInfo;
   PlatformRepo->BoardRevision = 0;
+  EnabledMask = LoadAcpiTableMask ();
+  ApplyAcpiTableMask (PlatformRepo, EnabledMask);
 
   DEBUG ((
     DEBUG_INFO,
@@ -201,8 +297,9 @@ InitializePlatformRepository (
     ));
   DEBUG ((
     DEBUG_INFO,
-    "MONO ACPI: TableList count=%u includes FADT/GTDT/MADT/MCFG/SPCR/PPTT/DSDT\n",
-    (UINT32)ARRAY_SIZE (PlatformRepo->CmAcpiTableList)
+    "MONO ACPI: TableList count=%u mask=0x%x\n",
+    PlatformRepo->CmAcpiTableCount,
+    EnabledMask
     ));
 
   return ValidatePlatformRepository (PlatformRepo);
@@ -251,8 +348,8 @@ GetStandardNameSpaceObject (
       return HandleCmObject (
                CmObjectId,
                &PlatformRepo->CmAcpiTableList,
-               sizeof (PlatformRepo->CmAcpiTableList),
-               ARRAY_SIZE (PlatformRepo->CmAcpiTableList),
+               sizeof (PlatformRepo->CmAcpiTableList[0]) * PlatformRepo->CmAcpiTableCount,
+               PlatformRepo->CmAcpiTableCount,
                CmObject
                );
     default:
