@@ -17,6 +17,7 @@
 #define DWC3_RELEASE_MASK                      0xffff
 #define DWC3_REG_OFFSET                        0xC100
 #define DWC3_RELEASE_190a                      0x190a
+#define DWC3_RELEASE_194a                      0x194a
 
 /* Global Configuration Register */
 #define DWC3_GCTL_U2RSTECN                     BIT16
@@ -35,9 +36,15 @@
 
 /* Global USB2 PHY Configuration Register */
 #define DWC3_GUSB2PHYCFG_PHYSOFTRST            BIT31
+#define DWC3_GUSB2PHYCFG_SUSPHY                BIT6
 
 /* Global USB3 PIPE Control Register */
 #define DWC3_GUSB3PIPECTL_PHYSOFTRST           BIT31
+#define DWC3_GUSB3PIPECTL_DISRXDETP3           BIT28
+#define DWC3_GUSB3PIPECTL_SUSPHY               BIT17
+
+/* Device Control Register */
+#define DWC3_DCTL_CSFTRST                      BIT30
 
 /* Global Frame Length Adjustment Register */
 #define GFLADJ_30MHZ_REG_SEL                   BIT7
@@ -48,6 +55,8 @@
 #define USB3_ENABLE_BEAT_BURST                 0xF
 #define USB3_ENABLE_BEAT_BURST_MASK            0xFF
 #define USB3_SET_BEAT_BURST_LIMIT              0xF00
+#define DWC3_GSBUSCFG0_UBOOT_HOST              0x22220009
+#define DWC3_GUCTL1_UBOOT_HOST                 0x0002018A
 
 typedef struct {
   UINT32 GEvntAdrLo;
