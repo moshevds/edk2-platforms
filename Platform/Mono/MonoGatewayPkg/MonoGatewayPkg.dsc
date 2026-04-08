@@ -25,6 +25,7 @@
   DEFINE NETWORK_TLS_ENABLE      = FALSE
   DEFINE NETWORK_HTTP_BOOT_ENABLE = FALSE
   DEFINE NETWORK_ISCSI_ENABLE    = TRUE
+  DEFINE MONO_CAAM_ENABLE        = TRUE
 
 !include Silicon/NXP/NxpQoriqLs.dsc.inc
 !include MdePkg/MdeLibs.dsc.inc
@@ -37,7 +38,11 @@
   OpensslLib|CryptoPkg/Library/OpensslLib/OpensslLib.inf
   IntrinsicLib|CryptoPkg/Library/IntrinsicLib/IntrinsicLib.inf
   RngLib|MdePkg/Library/DxeRngLib/DxeRngLib.inf
+!if $(MONO_CAAM_ENABLE) == TRUE
   ArmTrngLib|Silicon/NXP/Library/CaamArmTrngLib/CaamArmTrngLib.inf
+!else
+  ArmTrngLib|MdePkg/Library/BaseArmTrngLibNull/BaseArmTrngLibNull.inf
+!endif
   TlsLib|CryptoPkg/Library/TlsLib/TlsLib.inf
 !if $(DYNAMIC_ACPI_ENABLE) == TRUE
   AcpiHelperLib|DynamicTablesPkg/Library/Common/AcpiHelperLib/AcpiHelperLib.inf
