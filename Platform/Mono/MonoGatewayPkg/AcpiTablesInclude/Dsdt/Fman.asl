@@ -11,6 +11,11 @@
     Return (0x0F) \
   }
 
+#define MONO_STA_DISABLED \
+  Method (_STA, 0, NotSerialized) { \
+    Return (Zero) \
+  }
+
 #define MONO_PROP_COMPAT1(Str0) \
   Package (2) { "compatible", Package () { Str0 } }
 
@@ -25,6 +30,12 @@
 
 #define MONO_PROP_U32_ARR2(Key, V0, V1) \
   Package (2) { Key, Package () { V0, V1 } }
+
+#define MONO_PROP_REF_ARR2(Key, Ref0, Ref1) \
+  Package (2) { Key, Package () { Ref0, Ref1 } }
+
+#define MONO_PROP_MAC6(Key, B0, B1, B2, B3, B4, B5) \
+  Package (2) { Key, Buffer () { B0, B1, B2, B3, B4, B5 } }
 
     Device (FMAN) {
       Name (_HID, "PRP0001")
@@ -725,6 +736,407 @@
             MONO_PROP_U32 ("fsl,qman-channel-id", 0x801),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x4000, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
+          }
+        })
+      }
+
+      Device (MDFA) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xFC0)
+        MONO_STA_DISABLED
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AFC000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MDFB) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xFD0)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AFD000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC0) {
+        Name (_HID, "PRP0001")
+        Name (_UID, Zero)
+        Name (_CCA, One)
+        MONO_STA_DISABLED
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE0000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", Zero),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G0, T1G0)
+          }
+        })
+      }
+
+      Device (MD00) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xE10)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE1000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC1) {
+        Name (_HID, "PRP0001")
+        Name (_UID, One)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE2000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", One),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G1, T1G1),
+            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33),
+            MONO_PROP_STR ("phy-mode", "sgmii"),
+            MONO_PROP_STR ("phy-connection-type", "sgmii")
+          }
+        })
+      }
+
+      Device (MD01) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xE30)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE3000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC2) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x02)
+        Name (_CCA, One)
+        MONO_STA_DISABLED
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE4000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x02),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G2, T1G2)
+          }
+        })
+      }
+
+      Device (MD02) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xE50)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE5000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC3) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x03)
+        Name (_CCA, One)
+        MONO_STA_DISABLED
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE6000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x03),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G3, T1G3)
+          }
+        })
+      }
+
+      Device (MD03) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xE70)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE7000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC4) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x04)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE8000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x04),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G4, T1G4),
+            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31),
+            MONO_PROP_STR ("phy-mode", "sgmii"),
+            MONO_PROP_STR ("phy-connection-type", "sgmii")
+          }
+        })
+      }
+
+      Device (MD04) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xE90)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AE9000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MAC5) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x05)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AEA000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x05),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G5, T1G5),
+            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32),
+            MONO_PROP_STR ("phy-mode", "sgmii"),
+            MONO_PROP_STR ("phy-connection-type", "sgmii")
+          }
+        })
+      }
+
+      Device (MD05) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xEB0)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AEB000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MA08) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x08)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AF0000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x08),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10A, T10A),
+            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34),
+            MONO_PROP_STR ("phy-mode", "xgmii"),
+            MONO_PROP_STR ("phy-connection-type", "xgmii"),
+            MONO_PROP_U32 ("fixed-link", One)
+          }
+        })
+      }
+
+      Device (MD08) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xF10)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AF1000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+          }
+        })
+      }
+
+      Device (MA09) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x09)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AF2000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_U32 ("cell-index", 0x09),
+            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10B, T10B),
+            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35),
+            MONO_PROP_STR ("phy-mode", "xgmii"),
+            MONO_PROP_STR ("phy-connection-type", "xgmii"),
+            MONO_PROP_U32 ("fixed-link", One)
+          }
+        })
+      }
+
+      Device (MD09) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0xF30)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          Memory32Fixed (ReadWrite, 0x01AF3000, 0x00001000)
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
       }
