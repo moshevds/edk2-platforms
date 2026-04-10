@@ -16,6 +16,9 @@
 
 #include "ConfigurationManager.h"
 
+#define MONO_ACPI_ENABLE_DBG2  0
+#define MONO_ACPI_ENABLE_SPCR  1
+
 MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
   { CONFIGURATION_MANAGER_REVISION, CFG_MGR_OEM_ID },
   {
@@ -123,7 +126,18 @@ GetDefaultAcpiTableMask (
   VOID
   )
 {
-  return MONO_ACPI_TABLE_MASK_ALL;
+  UINT32  Mask;
+
+  Mask = MONO_ACPI_TABLE_MASK_ALL;
+
+#if !MONO_ACPI_ENABLE_DBG2
+  Mask &= ~MONO_ACPI_TABLE_BIT (MonoAcpiTableDbg2);
+#endif
+#if !MONO_ACPI_ENABLE_SPCR
+  Mask &= ~MONO_ACPI_TABLE_BIT (MonoAcpiTableSpcr);
+#endif
+
+  return Mask;
 }
 
 STATIC

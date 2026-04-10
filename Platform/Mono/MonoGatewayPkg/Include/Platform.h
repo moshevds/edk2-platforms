@@ -28,9 +28,13 @@
 #define GICV_BASE         0x01460000
 
 #define UART0_BASE        0x021C0500
-#define UART0_IT          54
+#define UART0_IT          86  /* DT SPI 54 -> GIC hwirq 86 (SPI + 32) */
 #define UART_LEN          0x100
 #define UART0_CLOCK       300000000
+
+#define USB0_BASE         0x02F00000
+#define USB0_IT           92  /* DT SPI 60 -> GIC hwirq 92 (SPI + 32) */
+#define USB_LEN           0x10000
 
 #define TIMER_BASE_ADDRESS       MAX_UINT64
 #define TIMER_READ_BASE_ADDRESS  MAX_UINT64
@@ -43,6 +47,12 @@
 #define MONO_PCIE3_SEGMENT       2
 #define MONO_PCIE_BUSNUM_MIN     0x0
 #define MONO_PCIE_BUSNUM_MAX     0xFF
+#define MONO_PCIE3_IO_BASE       0x5000010000ULL
+#define MONO_PCIE3_IO_SIZE       0x10000ULL
+#define MONO_PCIE3_MEM_BASE      0x5040000000ULL
+#define MONO_PCIE3_MEM_SIZE      0x40000000ULL
+#define MONO_PCIE3_INTA          186 /* DT SPI 154 -> GIC hwirq 186 (SPI + 32) */
+#define MONO_PCIE3_SLOT          1
 
 #define OEM_ACPI_TABLES                 1
 #define CFG_MGR_TABLE_ID                SIGNATURE_64 ('M', 'O', 'N', 'O', ' ', ' ', ' ', ' ')
