@@ -31,8 +31,17 @@
 #define MONO_PROP_U32_ARR2(Key, V0, V1) \
   Package (2) { Key, Package () { V0, V1 } }
 
+#define MONO_PROP_U32_ARR5(Key, V0, V1, V2, V3, V4) \
+  Package (2) { Key, Package () { V0, V1, V2, V3, V4 } }
+
+#define MONO_PROP_REF(Key, Ref0) \
+  Package (2) { Key, Ref0 }
+
 #define MONO_PROP_REF_ARR2(Key, Ref0, Ref1) \
   Package (2) { Key, Package () { Ref0, Ref1 } }
+
+#define MONO_PROP_REF_ARR3(Key, Ref0, Ref1, Ref2) \
+  Package (2) { Key, Package () { Ref0, Ref1, Ref2 } }
 
 #define MONO_PROP_MAC6(Key, B0, B1, B2, B3, B4, B5) \
   Package (2) { Key, Buffer () { B0, B1, B2, B3, B4, B5 } }
@@ -758,6 +767,7 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
       }
 
       Device (MDFB) {
@@ -778,6 +788,21 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (EPH0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
+
+        Device (EPH1) {
+          Name (_ADR, One)
+          MONO_STA_PRESENT
+        }
+
+        Device (EPH2) {
+          Name (_ADR, 0x02)
+          MONO_STA_PRESENT
+        }
       }
 
       Device (MAC0) {
@@ -842,6 +867,9 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", One),
             MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G1, T1G1),
+            MONO_PROP_REF ("ptp-timer", PTMR),
+            MONO_PROP_REF ("pcsphy-handle", MD01.PCS0),
+            MONO_PROP_REF ("phy-handle", MDFB.EPH2),
             MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
@@ -867,6 +895,11 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (PCS0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
       }
 
       Device (MAC2) {
@@ -974,6 +1007,9 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x04),
             MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G4, T1G4),
+            MONO_PROP_REF ("ptp-timer", PTMR),
+            MONO_PROP_REF_ARR2 ("pcsphy-handle", MD04.PCS0, MD05.PCS1),
+            MONO_PROP_REF ("phy-handle", MDFB.EPH0),
             MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
@@ -999,6 +1035,11 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (PCS0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
       }
 
       Device (MAC5) {
@@ -1020,6 +1061,9 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x05),
             MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G5, T1G5),
+            MONO_PROP_REF ("ptp-timer", PTMR),
+            MONO_PROP_REF_ARR2 ("pcsphy-handle", MD05.PCS0, MD05.PCS0),
+            MONO_PROP_REF ("phy-handle", MDFB.EPH1),
             MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
@@ -1045,6 +1089,21 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (PCS0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
+
+        Device (PCS1) {
+          Name (_ADR, One)
+          MONO_STA_PRESENT
+        }
+
+        Device (PCS2) {
+          Name (_ADR, 0x02)
+          MONO_STA_PRESENT
+        }
       }
 
       Device (MA08) {
@@ -1066,10 +1125,11 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x08),
             MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10A, T10A),
+            MONO_PROP_REF ("pcsphy-handle", MD08.PCS0),
             MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34),
             MONO_PROP_STR ("phy-mode", "xgmii"),
             MONO_PROP_STR ("phy-connection-type", "xgmii"),
-            MONO_PROP_U32 ("fixed-link", One)
+            MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
           }
         })
       }
@@ -1092,6 +1152,11 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (PCS0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
       }
 
       Device (MA09) {
@@ -1113,10 +1178,11 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x09),
             MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10B, T10B),
+            MONO_PROP_REF_ARR3 ("pcsphy-handle", MD09.PCS0, MD05.PCS2, MD09.PCS0),
             MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35),
             MONO_PROP_STR ("phy-mode", "xgmii"),
             MONO_PROP_STR ("phy-connection-type", "xgmii"),
-            MONO_PROP_U32 ("fixed-link", One)
+            MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
           }
         })
       }
@@ -1139,6 +1205,136 @@
             MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
           }
         })
+
+        Device (PCS0) {
+          Name (_ADR, Zero)
+          MONO_STA_PRESENT
+        }
+      }
+
+      Device (DPAA) {
+        Name (_HID, "PRP0001")
+        Name (_UID, Zero)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("fsl,ls1043a-dpaa", "fsl,dpaa")
+          }
+        })
+
+        Device (ETH0) {
+          Name (_HID, "PRP0001")
+          Name (_UID, Zero)
+          Name (_CCA, One)
+          MONO_STA_DISABLED
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC0)
+            }
+          })
+        }
+
+        Device (ETH1) {
+          Name (_HID, "PRP0001")
+          Name (_UID, One)
+          Name (_CCA, One)
+          MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC1)
+            }
+          })
+        }
+
+        Device (ETH2) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x02)
+          Name (_CCA, One)
+          MONO_STA_DISABLED
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC2)
+            }
+          })
+        }
+
+        Device (ETH3) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x03)
+          Name (_CCA, One)
+          MONO_STA_DISABLED
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC3)
+            }
+          })
+        }
+
+        Device (ETH4) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x04)
+          Name (_CCA, One)
+          MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC4)
+            }
+          })
+        }
+
+        Device (ETH5) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x05)
+          Name (_CCA, One)
+          MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MAC5)
+            }
+          })
+        }
+
+        Device (ETH8) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x08)
+          Name (_CCA, One)
+          MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MA08)
+            }
+          })
+        }
+
+        Device (ETH9) {
+          Name (_HID, "PRP0001")
+          Name (_UID, 0x09)
+          Name (_CCA, One)
+          MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
+              MONO_PROP_REF ("fsl,fman-mac", MA09)
+            }
+          })
+        }
       }
     }
 
