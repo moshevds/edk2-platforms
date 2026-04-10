@@ -64,5 +64,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
         }
       })
     }
+
+#include "Fman.asl"
   }
 }
