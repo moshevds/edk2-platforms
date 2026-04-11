@@ -5,6 +5,7 @@
 **/
 
 #define MONO_ACPI_DSD_UUID  "daffd814-6eba-4d8c-8a91-bc9bbf4aa301"
+#define MONO_ACPI_BUF_UUID  "edb12dd0-363d-4085-a3d2-49522ca160c4"
 
 #define MONO_STA_PRESENT \
   Method (_STA, 0, NotSerialized) { \
@@ -31,6 +32,9 @@
 #define MONO_PROP_U32_ARR2(Key, V0, V1) \
   Package (2) { Key, Package () { V0, V1 } }
 
+#define MONO_PROP_U64_ARR2(Key, V0, V1) \
+  Package (2) { Key, Package () { V0, V1 } }
+
 #define MONO_PROP_U32_ARR5(Key, V0, V1, V2, V3, V4) \
   Package (2) { Key, Package () { V0, V1, V2, V3, V4 } }
 
@@ -43,8 +47,12 @@
 #define MONO_PROP_REF_ARR3(Key, Ref0, Ref1, Ref2) \
   Package (2) { Key, Package () { Ref0, Ref1, Ref2 } }
 
-#define MONO_PROP_MAC6(Key, B0, B1, B2, B3, B4, B5) \
-  Package (2) { Key, Buffer () { B0, B1, B2, B3, B4, B5 } }
+/* Linux only accepts raw buffers through the ACPI buffer-properties GUID.
+ * Keep "compatible" in the standard device-properties GUID and publish
+ * MAC addresses via a separate named buffer.
+ */
+#define MONO_NAME_MAC6(Name0, B0, B1, B2, B3, B4, B5) \
+  Name (Name0, Buffer (0x06) { B0, B1, B2, B3, B4, B5 })
 
     Device (FMAN) {
       Name (_HID, "PRP0001")
@@ -53,7 +61,8 @@
       MONO_STA_PRESENT
 
       Name (RBUF, ResourceTemplate () {
-        Memory32Fixed (ReadWrite, 0x01A00000, 0x000FE000)
+        Memory32Fixed (ReadWrite, 0x01A80000, 0x00002000)
+        Memory32Fixed (ReadWrite, 0x01AC0000, 0x0001E000)
         Interrupt (ResourceConsumer, Level, ActiveHigh, Shared) { 76 }
         Interrupt (ResourceConsumer, Level, ActiveHigh, Shared) { 77 }
       })
@@ -64,10 +73,10 @@
 
       Name (_DSD, Package () {
         ToUUID (MONO_ACPI_DSD_UUID), Package () {
-          MONO_PROP_COMPAT1 ("fsl,fman"),
+          MONO_PROP_COMPAT1 ("beta_fsl,fman"),
           MONO_PROP_U32 ("cell-index", Zero),
           MONO_PROP_U32 ("clock-frequency", 0x11E1A300),
-          MONO_PROP_STR ("firmware-name", "fsl_fman_ucode_ls1046_r1.0_108_4_9.bin"),
+          MONO_PROP_STR ("firmware-name", "fsl_fman_ucode_ls1043_r1.0_210_10_1.bin"),
           MONO_PROP_U32 ("total-fifo-size", 0x3E500)
         }
       })
@@ -87,7 +96,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-muram")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-muram")
           }
         })
       }
@@ -97,17 +106,9 @@
         Name (_UID, Zero)
         MONO_STA_PRESENT
 
-        Name (RBUF, ResourceTemplate () {
-          Memory32Fixed (ReadWrite, 0x01AC0000, 0x00001000)
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-policer")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-policer")
           }
         })
       }
@@ -117,17 +118,9 @@
         Name (_UID, Zero)
         MONO_STA_PRESENT
 
-        Name (RBUF, ResourceTemplate () {
-          Memory32Fixed (ReadWrite, 0x01AC1000, 0x00001000)
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-keygen")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-keygen")
           }
         })
       }
@@ -137,17 +130,9 @@
         Name (_UID, Zero)
         MONO_STA_PRESENT
 
-        Name (RBUF, ResourceTemplate () {
-          Memory32Fixed (ReadWrite, 0x01AC7000, 0x00001000)
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-parser")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-parser")
           }
         })
       }
@@ -158,17 +143,9 @@
         Name (_CCA, One)
         MONO_STA_PRESENT
 
-        Name (RBUF, ResourceTemplate () {
-          Memory32Fixed (ReadWrite, 0x01ADC000, 0x00001000)
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-vsps")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-vsps")
           }
         })
       }
@@ -180,7 +157,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-cc")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-cc")
           }
         })
       }
@@ -202,7 +179,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-ptp-timer", "fsl,fman-rtc")
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-ptp-timer", "beta_fsl,fman-rtc")
           }
         })
       }
@@ -223,9 +200,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", Zero),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x809)
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x809)
           }
         })
       }
@@ -246,9 +223,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", One),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x80A),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x80A),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -271,9 +248,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", 0x02),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x80B),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x80B),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x0900, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -296,9 +273,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", 0x03),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x80C)
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x80C)
           }
         })
       }
@@ -319,9 +296,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", 0x04),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x80D)
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x80D)
           }
         })
       }
@@ -342,9 +319,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-port-oh"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-port-oh"),
             MONO_PROP_U32 ("cell-index", 0x05),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x80E)
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x80E)
           }
         })
       }
@@ -365,7 +342,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x08),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -390,9 +367,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x28),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x802),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x802),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -415,7 +392,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x09),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -440,9 +417,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x29),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x803),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x803),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -465,7 +442,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x0A),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -490,9 +467,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x2A),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x804),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x804),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -515,7 +492,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x0B),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -540,9 +517,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x2B),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x805),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x805),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -565,7 +542,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x0C),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -590,9 +567,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x2C),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x806),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x806),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -615,7 +592,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-1g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-1g-rx"),
             MONO_PROP_U32 ("cell-index", 0x0D),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -640,9 +617,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-1g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-1g-tx"),
             MONO_PROP_U32 ("cell-index", 0x2D),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x807),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x807),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x3200, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -665,7 +642,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-10g-rx"),
             MONO_PROP_U32 ("cell-index", 0x10),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x6000, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -690,9 +667,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-10g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-10g-tx"),
             MONO_PROP_U32 ("cell-index", 0x30),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x800),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x800),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x4000, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -715,7 +692,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-rx", "fsl,fman-port-10g-rx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-rx", "beta_fsl,fman-port-10g-rx"),
             MONO_PROP_U32 ("cell-index", 0x11),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x6000, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40),
@@ -740,9 +717,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,fman-v3-port-tx", "fsl,fman-port-10g-tx"),
+            MONO_PROP_COMPAT2 ("beta_fsl,fman-v3-port-tx", "beta_fsl,fman-port-10g-tx"),
             MONO_PROP_U32 ("cell-index", 0x31),
-            MONO_PROP_U32 ("fsl,qman-channel-id", 0x801),
+            MONO_PROP_U32 ("beta_fsl,qman-channel-id", 0x801),
             MONO_PROP_U32_ARR2 ("fifo-size", 0x4000, Zero),
             MONO_PROP_U32_ARR2 ("buffer-layout", 0x60, 0x40)
           }
@@ -764,7 +741,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -785,7 +762,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -821,9 +798,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", Zero),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G0, T1G0)
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G0, T1G0)
           }
         })
       }
@@ -843,7 +820,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
       }
@@ -853,6 +830,7 @@
         Name (_UID, One)
         Name (_CCA, One)
         MONO_STA_PRESENT
+        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE2000, 0x00001000)
@@ -862,17 +840,19 @@
           Return (RBUF)
         }
 
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+        Name (_DSD, Package (0x04) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x08) {
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", One),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G1, T1G1),
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G1, T1G1),
             MONO_PROP_REF ("ptp-timer", PTMR),
-            MONO_PROP_REF ("pcsphy-handle", MD01.PCS0),
-            MONO_PROP_REF ("phy-handle", MDFB.EPH2),
-            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33),
+            MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD01.PCS0),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH2),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
+          },
+          ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
+          MONO_PROP_STR ("local-mac-address", "LMAC")
           }
         })
       }
@@ -892,7 +872,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -918,9 +898,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x02),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G2, T1G2)
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G2, T1G2)
           }
         })
       }
@@ -940,7 +920,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
       }
@@ -961,9 +941,9 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x03),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G3, T1G3)
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G3, T1G3)
           }
         })
       }
@@ -983,7 +963,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
       }
@@ -993,6 +973,7 @@
         Name (_UID, 0x04)
         Name (_CCA, One)
         MONO_STA_PRESENT
+        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE8000, 0x00001000)
@@ -1002,17 +983,19 @@
           Return (RBUF)
         }
 
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+        Name (_DSD, Package (0x04) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x08) {
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x04),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G4, T1G4),
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G4, T1G4),
             MONO_PROP_REF ("ptp-timer", PTMR),
-            MONO_PROP_REF_ARR2 ("pcsphy-handle", MD04.PCS0, MD05.PCS1),
-            MONO_PROP_REF ("phy-handle", MDFB.EPH0),
-            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31),
+            MONO_PROP_REF_ARR2 ("pcsphy-handle", \_SB.FMAN.MD04.PCS0, \_SB.FMAN.MD05.PCS1),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH0),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
+          },
+          ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
+          MONO_PROP_STR ("local-mac-address", "LMAC")
           }
         })
       }
@@ -1032,7 +1015,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -1047,6 +1030,7 @@
         Name (_UID, 0x05)
         Name (_CCA, One)
         MONO_STA_PRESENT
+        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AEA000, 0x00001000)
@@ -1056,17 +1040,19 @@
           Return (RBUF)
         }
 
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+        Name (_DSD, Package (0x04) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x08) {
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x05),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R1G5, T1G5),
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G5, T1G5),
             MONO_PROP_REF ("ptp-timer", PTMR),
-            MONO_PROP_REF_ARR2 ("pcsphy-handle", MD05.PCS0, MD05.PCS0),
-            MONO_PROP_REF ("phy-handle", MDFB.EPH1),
-            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32),
+            MONO_PROP_REF_ARR2 ("pcsphy-handle", \_SB.FMAN.MD05.PCS0, \_SB.FMAN.MD05.PCS0),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH1),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
+          },
+          ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
+          MONO_PROP_STR ("local-mac-address", "LMAC")
           }
         })
       }
@@ -1086,7 +1072,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -1111,6 +1097,7 @@
         Name (_UID, 0x08)
         Name (_CCA, One)
         MONO_STA_PRESENT
+        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AF0000, 0x00001000)
@@ -1120,16 +1107,18 @@
           Return (RBUF)
         }
 
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+        Name (_DSD, Package (0x04) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x07) {
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x08),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10A, T10A),
-            MONO_PROP_REF ("pcsphy-handle", MD08.PCS0),
-            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34),
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R10A, T10A),
+            MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD08.PCS0),
             MONO_PROP_STR ("phy-mode", "xgmii"),
             MONO_PROP_STR ("phy-connection-type", "xgmii"),
             MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
+          },
+          ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
+          MONO_PROP_STR ("local-mac-address", "LMAC")
           }
         })
       }
@@ -1149,7 +1138,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -1164,6 +1153,7 @@
         Name (_UID, 0x09)
         Name (_CCA, One)
         MONO_STA_PRESENT
+        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AF2000, 0x00001000)
@@ -1173,16 +1163,18 @@
           Return (RBUF)
         }
 
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac"),
+        Name (_DSD, Package (0x04) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x07) {
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x09),
-            MONO_PROP_REF_ARR2 ("fsl,fman-ports", R10B, T10B),
-            MONO_PROP_REF_ARR3 ("pcsphy-handle", MD09.PCS0, MD05.PCS2, MD09.PCS0),
-            MONO_PROP_MAC6 ("local-mac-address", 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35),
+            MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R10B, T10B),
+            MONO_PROP_REF_ARR3 ("pcsphy-handle", \_SB.FMAN.MD09.PCS0, \_SB.FMAN.MD05.PCS2, \_SB.FMAN.MD09.PCS0),
             MONO_PROP_STR ("phy-mode", "xgmii"),
             MONO_PROP_STR ("phy-connection-type", "xgmii"),
             MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
+          },
+          ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
+          MONO_PROP_STR ("local-mac-address", "LMAC")
           }
         })
       }
@@ -1202,7 +1194,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT1 ("fsl,fman-memac-mdio")
+            MONO_PROP_COMPAT1 ("beta_fsl,fman-memac-mdio")
           }
         })
 
@@ -1220,7 +1212,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,ls1043a-dpaa", "fsl,dpaa")
+            MONO_PROP_COMPAT2 ("beta_fsl,ls1043a-dpaa", "beta_fsl,dpaa")
           }
         })
 
@@ -1232,8 +1224,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC0)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC0)
             }
           })
         }
@@ -1246,8 +1238,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC1)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC1)
             }
           })
         }
@@ -1260,8 +1252,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC2)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC2)
             }
           })
         }
@@ -1274,8 +1266,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC3)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC3)
             }
           })
         }
@@ -1288,8 +1280,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC4)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC4)
             }
           })
         }
@@ -1302,8 +1294,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MAC5)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MAC5)
             }
           })
         }
@@ -1316,8 +1308,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MA08)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MA08)
             }
           })
         }
@@ -1330,8 +1322,8 @@
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
-              MONO_PROP_COMPAT1 ("fsl,dpa-ethernet"),
-              MONO_PROP_REF ("fsl,fman-mac", MA09)
+              MONO_PROP_COMPAT1 ("beta_fsl,dpa-ethernet"),
+              MONO_PROP_REF ("beta_fsl,fman-mac", MA09)
             }
           })
         }
@@ -1346,26 +1338,6 @@
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, 0x01880000, 0x00010000)
-        QWordMemory (
-          ResourceConsumer, PosDecode,
-          MinFixed, MaxFixed,
-          NonCacheable, ReadWrite,
-          0,
-          0x09FE800000,
-          0x09FEFFFFFF,
-          0,
-          0x00800000
-        )
-        QWordMemory (
-          ResourceConsumer, PosDecode,
-          MinFixed, MaxFixed,
-          NonCacheable, ReadWrite,
-          0,
-          0x09FC000000,
-          0x09FDFFFFFF,
-          0,
-          0x02000000
-        )
         Interrupt (ResourceConsumer, Level, ActiveHigh, Shared) { 77 }
       })
 
@@ -1375,8 +1347,10 @@
 
       Name (_DSD, Package () {
         ToUUID (MONO_ACPI_DSD_UUID), Package () {
-          MONO_PROP_COMPAT1 ("fsl,qman"),
-          MONO_PROP_U32 ("clock-frequency", 0x11E1A300)
+          MONO_PROP_COMPAT1 ("beta_fsl,qman"),
+          MONO_PROP_U32 ("clock-frequency", 0x11E1A300),
+          MONO_PROP_U64_ARR2 ("beta_fsl,qman-fqd", 0x09FE800000, 0x00800000),
+          MONO_PROP_U64_ARR2 ("beta_fsl,qman-pfdr", 0x09FC000000, 0x02000000)
         }
       })
 
@@ -1398,7 +1372,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", Zero)
           }
         })
@@ -1422,7 +1396,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", One)
           }
         })
@@ -1446,7 +1420,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x02)
           }
         })
@@ -1470,7 +1444,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x03)
           }
         })
@@ -1494,7 +1468,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x04)
           }
         })
@@ -1518,7 +1492,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x05)
           }
         })
@@ -1542,7 +1516,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x06)
           }
         })
@@ -1566,7 +1540,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x07)
           }
         })
@@ -1590,7 +1564,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x08)
           }
         })
@@ -1614,7 +1588,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,qman-portal-3.2.1", "fsl,qman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
             MONO_PROP_U32 ("cell-index", 0x09)
           }
         })
@@ -1629,16 +1603,6 @@
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, 0x01890000, 0x00010000)
-        QWordMemory (
-          ResourceConsumer, PosDecode,
-          MinFixed, MaxFixed,
-          NonCacheable, ReadWrite,
-          0,
-          0x09FF000000,
-          0x09FFFFFFFF,
-          0,
-          0x01000000
-        )
         Interrupt (ResourceConsumer, Level, ActiveHigh, Shared) { 77 }
       })
 
@@ -1648,7 +1612,8 @@
 
       Name (_DSD, Package () {
         ToUUID (MONO_ACPI_DSD_UUID), Package () {
-          MONO_PROP_COMPAT1 ("fsl,bman")
+          MONO_PROP_COMPAT1 ("beta_fsl,bman"),
+          MONO_PROP_U64_ARR2 ("beta_fsl,bman-fbpr", 0x09FF000000, 0x01000000)
         }
       })
 
@@ -1670,7 +1635,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", Zero)
           }
         })
@@ -1694,7 +1659,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", One)
           }
         })
@@ -1718,7 +1683,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x02)
           }
         })
@@ -1742,7 +1707,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x03)
           }
         })
@@ -1766,7 +1731,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x04)
           }
         })
@@ -1790,7 +1755,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x05)
           }
         })
@@ -1814,7 +1779,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x06)
           }
         })
@@ -1838,7 +1803,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x07)
           }
         })
@@ -1862,7 +1827,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x08)
           }
         })
@@ -1886,7 +1851,7 @@
 
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("fsl,bman-portal-2.1.3", "fsl,bman-portal"),
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
             MONO_PROP_U32 ("cell-index", 0x09)
           }
         })

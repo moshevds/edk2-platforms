@@ -49,6 +49,12 @@
   gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x0|UINT64|0x00000510
   gNxpQoriqLsTokenSpaceGuid.PcdUsbSize|0x0|UINT32|0x00000511
   gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|0|UINT32|0x00000512
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase|0x0|UINT64|0x00000513
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize|0x0|UINT32|0x00000514
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase|0x0|UINT64|0x00000515
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrSize|0x0|UINT32|0x00000516
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase|0x0|UINT64|0x00000517
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprSize|0x0|UINT32|0x00000518
 
   # Pcds for SATA
   gNxpQoriqLsTokenSpaceGuid.PcdSataBaseAddr|0x0|UINT64|0x00000350

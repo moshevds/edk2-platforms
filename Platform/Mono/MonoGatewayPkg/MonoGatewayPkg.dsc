@@ -64,6 +64,12 @@
   gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x02F00000
   gNxpQoriqLsTokenSpaceGuid.PcdUsbSize|0x00100000
   gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|1
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase|0x09FE800000
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize|0x00800000
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase|0x09FC000000
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrSize|0x02000000
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase|0x09FF000000
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprSize|0x01000000
 
 [Components.common]
   Platform/Mono/MonoGatewayPkg/Drivers/AcpiDebugDxe/AcpiDebugDxe.inf

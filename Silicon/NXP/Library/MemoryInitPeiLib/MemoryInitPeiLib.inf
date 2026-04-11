@@ -46,6 +46,12 @@
   gArmTokenSpaceGuid.PcdFdBaseAddress
   gArmTokenSpaceGuid.PcdFdSize
   gArmPlatformTokenSpaceGuid.PcdSystemMemoryUefiRegionSize
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrSize
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprSize
 
 [Pcd]
   gArmTokenSpaceGuid.PcdSystemMemoryBase

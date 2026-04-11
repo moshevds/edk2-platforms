@@ -27,6 +27,11 @@ BuildMemoryTypeInformationHob (
   VOID
   );
 
+typedef struct {
+  EFI_PHYSICAL_ADDRESS    Base;
+  UINT64                  Size;
+} RESERVED_MEMORY_REGION;
+
 VOID
 InitMmu (
   IN ARM_MEMORY_REGION_DESCRIPTOR  *MemoryTable
@@ -118,6 +123,138 @@ GetDramRegionsInfo (
   return EFI_BUFFER_TOO_SMALL;
 }
 
+STATIC
+VOID
+ReserveMemoryRegion (
+  IN EFI_PHYSICAL_ADDRESS      ReservedRegionBase,
+  IN UINT64                    ReservedRegionSize
+  )
+{
+  EFI_RESOURCE_ATTRIBUTE_TYPE  ResourceAttributes;
+  EFI_PHYSICAL_ADDRESS         ReservedRegionTop;
+  EFI_PHYSICAL_ADDRESS         ResourceTop;
+  EFI_PEI_HOB_POINTERS         NextHob;
+  UINT64                       ResourceLength;
+
+  if ((ReservedRegionBase == 0) || (ReservedRegionSize == 0)) {
+    return;
+  }
+
+  ReservedRegionTop = ReservedRegionBase + ReservedRegionSize;
+
+  for (NextHob.Raw = GetHobList ();
+       NextHob.Raw != NULL;
+       NextHob.Raw = GetNextHob (EFI_HOB_TYPE_RESOURCE_DESCRIPTOR, NextHob.Raw)) {
+    if ((NextHob.ResourceDescriptor->ResourceType == EFI_RESOURCE_SYSTEM_MEMORY) &&
+        (ReservedRegionBase >= NextHob.ResourceDescriptor->PhysicalStart) &&
+        (ReservedRegionTop <= NextHob.ResourceDescriptor->PhysicalStart +
+                              NextHob.ResourceDescriptor->ResourceLength))
+    {
+      ResourceAttributes = NextHob.ResourceDescriptor->ResourceAttribute;
+      ResourceLength = NextHob.ResourceDescriptor->ResourceLength;
+      ResourceTop = NextHob.ResourceDescriptor->PhysicalStart + ResourceLength;
+
+      if (ReservedRegionBase == NextHob.ResourceDescriptor->PhysicalStart) {
+        NextHob.ResourceDescriptor->PhysicalStart += ReservedRegionSize;
+        NextHob.ResourceDescriptor->ResourceLength -= ReservedRegionSize;
+      } else if (ResourceTop == ReservedRegionTop) {
+        NextHob.ResourceDescriptor->ResourceLength -= ReservedRegionSize;
+      } else {
+        NextHob.ResourceDescriptor->ResourceLength =
+          ReservedRegionBase - NextHob.ResourceDescriptor->PhysicalStart;
+        BuildResourceDescriptorHob (
+          EFI_RESOURCE_SYSTEM_MEMORY,
+          ResourceAttributes,
+          ReservedRegionTop,
+          ResourceTop - ReservedRegionTop
+        );
+      }
+
+      BuildResourceDescriptorHob (
+        EFI_RESOURCE_MEMORY_RESERVED,
+        0,
+        ReservedRegionBase,
+        ReservedRegionSize
+      );
+      return;
+    }
+
+    NextHob.Raw = GET_NEXT_HOB (NextHob);
+  }
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "Failed to reserve memory region [0x%lx..0x%lx]\n",
+    (UINTN)ReservedRegionBase,
+    (UINTN)(ReservedRegionTop - 1)
+    ));
+}
+
+STATIC
+VOID
+ReservePlatformPrivateMemory (
+  VOID
+  )
+{
+  CONST RESERVED_MEMORY_REGION  ReservedRegions[] = {
+    {
+      FixedPcdGet64 (PcdQmanFqdBase),
+      FixedPcdGet32 (PcdQmanFqdSize)
+    },
+    {
+      FixedPcdGet64 (PcdQmanPfdrBase),
+      FixedPcdGet32 (PcdQmanPfdrSize)
+    },
+    {
+      FixedPcdGet64 (PcdBmanFbprBase),
+      FixedPcdGet32 (PcdBmanFbprSize)
+    }
+  };
+  UINTN                         Index;
+
+  for (Index = 0; Index < ARRAY_SIZE (ReservedRegions); Index++) {
+    ReserveMemoryRegion (ReservedRegions[Index].Base, ReservedRegions[Index].Size);
+  }
+}
+
+STATIC
+EFI_STATUS
+SetSystemMemoryPcdsFromHobs (
+  VOID
+  )
+{
+  EFI_PEI_HOB_POINTERS  NextHob;
+  UINT64                SystemMemoryBase;
+  UINT64                SystemMemorySize;
+  UINT64                MinimumSize;
+
+  SystemMemoryBase = 0;
+  SystemMemorySize = 0;
+  MinimumSize = FixedPcdGet32 (PcdSystemMemoryUefiRegionSize);
+
+  for (NextHob.Raw = GetHobList ();
+       NextHob.Raw != NULL;
+       NextHob.Raw = GetNextHob (EFI_HOB_TYPE_RESOURCE_DESCRIPTOR, NextHob.Raw)) {
+    if ((NextHob.ResourceDescriptor->ResourceType == EFI_RESOURCE_SYSTEM_MEMORY) &&
+        (NextHob.ResourceDescriptor->ResourceLength >= MinimumSize) &&
+        (NextHob.ResourceDescriptor->PhysicalStart >= SystemMemoryBase))
+    {
+      SystemMemoryBase = NextHob.ResourceDescriptor->PhysicalStart;
+      SystemMemorySize = NextHob.ResourceDescriptor->ResourceLength;
+    }
+
+    NextHob.Raw = GET_NEXT_HOB (NextHob);
+  }
+
+  if (SystemMemorySize == 0) {
+    return EFI_NOT_FOUND;
+  }
+
+  PcdSet64S (PcdSystemMemoryBase, SystemMemoryBase);
+  PcdSet64S (PcdSystemMemorySize, SystemMemorySize);
+  return EFI_SUCCESS;
+}
+
 /**
   Get the installed RAM information.
   Initialize Memory HOBs (Resource Descriptor HOBs)
@@ -139,7 +276,6 @@ MemoryInitPeiLibConstructor (
   EFI_RESOURCE_ATTRIBUTE_TYPE   ResourceAttributes;
   UINTN                         FdBase;
   UINTN                         FdTop;
-  BOOLEAN                       FoundSystemMem;
 
   ResourceAttributes = (
     EFI_RESOURCE_ATTRIBUTE_PRESENT |
@@ -150,7 +286,6 @@ MemoryInitPeiLibConstructor (
     EFI_RESOURCE_ATTRIBUTE_TESTED
   );
 
-  FoundSystemMem = FALSE;
   ZeroMem (DramRegions, sizeof (DramRegions));
 
   (VOID)GetDramRegionsInfo (DramRegions, ARRAY_SIZE (DramRegions));
@@ -158,16 +293,9 @@ MemoryInitPeiLibConstructor (
   FdBase = (UINTN)PcdGet64 (PcdFdBaseAddress);
   FdTop = FdBase + (UINTN)PcdGet32 (PcdFdSize);
 
-  // Declare memory regions to system
-  // The DRAM region info is sorted based on the RAM address is SOC memory map.
-  // i.e. DramRegions[0] is at lower address, as compared to DramRegions[1].
-  // The goal to start from last region is to find the topmost RAM region that
-  // can contain UEFI DXE region i.e. PcdSystemMemoryUefiRegionSize.
-  // If UEFI were to allocate any reserved or runtime region, it would be
-  // allocated from topmost RAM region.
-  // This ensures that maximum amount of lower RAM (32 bit addresses) are left
-  // for OS to allocate to devices that can only work with 32bit physical
-  // addresses. E.g. legacy devices that need to DMA to 32bit addresses.
+  // Declare DRAM regions to the system first. These HOBs are then split around
+  // firmware and platform-reserved windows before selecting the final PEI
+  // system memory range from the carved result.
   for (Index = MAX_DRAM_REGIONS - 1; Index >= 0; Index--) {
     if (DramRegions[Index].Size == 0) {
       continue;
@@ -221,24 +349,11 @@ MemoryInitPeiLibConstructor (
       );
     }
 
-    if (FoundSystemMem == TRUE) {
-      continue;
-    }
-
-    Size = DramRegions[Index].Size;
-
-    if (FdBase >= BaseAddress && FdTop <= Top) {
-      Size -= (UINTN)PcdGet32 (PcdFdSize);
-    }
-
-    if (Size >= FixedPcdGet32 (PcdSystemMemoryUefiRegionSize)) {
-      FoundSystemMem = TRUE;
-      PcdSet64S (PcdSystemMemoryBase, BaseAddress);
-      PcdSet64S (PcdSystemMemorySize, Size);
-    }
   }
 
-  ASSERT (FoundSystemMem == TRUE);
+  ReservePlatformPrivateMemory ();
+
+  ASSERT_EFI_ERROR (SetSystemMemoryPcdsFromHobs ());
 
   return EFI_SUCCESS;
 }

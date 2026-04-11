@@ -167,7 +167,7 @@ READ_LOCK_STATUS   = TRUE
   }
 
   FILE FREEFORM = 5f0b8d16-8c6f-4c8a-8d77-cdbdb16d8d80 {
-    SECTION RAW = Platform/Mono/MonoGatewayPkg/Firmware/fsl_fman_ucode_ls1046_r1.0_108_4_9.bin
+    SECTION RAW = Platform/Mono/MonoGatewayPkg/Firmware/fsl_fman_ucode_ls1043_r1.0_210_10_1.bin
   }
 
   #
