@@ -91,6 +91,7 @@
   Platform/Mono/MonoGatewayPkg/Drivers/MonoSelfTestDxe/MonoSelfTestDxe.inf
   Platform/Mono/MonoGatewayPkg/Drivers/MonoDtManagerDxe/MonoDtManagerDxe.inf
   Platform/Mono/MonoGatewayPkg/Drivers/MonoAcpiManagerDxe/MonoAcpiManagerDxe.inf
+  Platform/Mono/MonoGatewayPkg/Drivers/MonoConfigDxe/MonoConfigDxe.inf
   ArmPkg/Drivers/ArmPsciMpServicesDxe/ArmPsciMpServicesDxe.inf
 !if $(DYNAMIC_ACPI_ENABLE) == TRUE
   DynamicTablesPkg/Drivers/DynamicTableFactoryDxe/DynamicTableFactoryDxe.inf {

@@ -1,0 +1,253 @@
+/** @file
+  Mono configuration menu HII scaffold.
+
+  SPDX-License-Identifier: BSD-2-Clause-Patent
+**/
+
+#include "MonoConfigVfr.h"
+
+#define EFI_VARIABLE_NON_VOLATILE       0x00000001
+#define EFI_VARIABLE_BOOTSERVICE_ACCESS 0x00000002
+
+formset
+  guid      = MONO_CONFIG_DXE_FORMSET_GUID,
+  title     = STRING_TOKEN (STR_MONO_CONFIG_TITLE),
+  help      = STRING_TOKEN (STR_MONO_CONFIG_HELP),
+  classguid = gEfiIfrFrontPageGuid,
+
+  efivarstore MONO_ACPI_TABLE_CONFIG,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name  = MonoAcpiTableConfig,
+    guid  = MONO_GATEWAY_TOKEN_SPACE_GUID;
+
+  efivarstore MONO_ACPI_DEVICE_CONFIG,
+    attribute = EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+    name  = MonoAcpiDeviceConfig,
+    guid  = MONO_GATEWAY_TOKEN_SPACE_GUID;
+
+  form formid = MONO_CONFIG_FORM_ID_MAIN,
+    title  = STRING_TOKEN (STR_MONO_CONFIG_TITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_SUBTITLE);
+
+    goto MONO_CONFIG_FORM_ID_ACPI_TABLES,
+      prompt = STRING_TOKEN (STR_MONO_CONFIG_ACPI_TABLES_TITLE),
+      help   = STRING_TOKEN (STR_MONO_CONFIG_ACPI_TABLES_HELP);
+
+    goto MONO_CONFIG_FORM_ID_ACPI_DEVICES,
+      prompt = STRING_TOKEN (STR_MONO_CONFIG_ACPI_DEVICES_TITLE),
+      help   = STRING_TOKEN (STR_MONO_CONFIG_ACPI_DEVICES_HELP);
+
+    goto MONO_CONFIG_FORM_ID_ADVANCED,
+      prompt = STRING_TOKEN (STR_MONO_CONFIG_ADVANCED_TITLE),
+      help   = STRING_TOKEN (STR_MONO_CONFIG_ADVANCED_HELP);
+
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_EXIT_HINT);
+  endform;
+
+  form formid = MONO_CONFIG_FORM_ID_ACPI_TABLES,
+    title  = STRING_TOKEN (STR_MONO_CONFIG_ACPI_TABLES_TITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_ACPI_TABLES_SUBTITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_RESET_NOTE);
+
+    checkbox varid = MonoAcpiTableConfig.Fadt,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_FADT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Gtdt,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_GTDT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Madt,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_MADT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Mcfg,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_MCFG_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Dbg2,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_DBG2_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Spcr,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_SPCR_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Pptt,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_PPTT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Dsdt,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_DSDT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+  endform;
+
+  form formid = MONO_CONFIG_FORM_ID_ACPI_DEVICES,
+    title  = STRING_TOKEN (STR_MONO_CONFIG_ACPI_DEVICES_TITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_ACPI_DEVICES_SUBTITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_RESET_NOTE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_CORE_DEVICES_SUBTITLE);
+
+    checkbox varid = MonoAcpiDeviceConfig.Uart0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_UART0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Usb0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_USB0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Dspi0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_DSPI0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Qspi0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_QSPI0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Emmc0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_EMMC0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Gpio2,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_GPIO2_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.I2c0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_I2C0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.I2c1,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_I2C1_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.I2c2,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_I2C2_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.I2c3,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_I2C3_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Rtc0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_RTC0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Wdt0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_WDT0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Pcie2,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_PCIE2_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Sfp0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_SFP0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Sfp1,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_SFP1_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth1,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH1_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth4,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH4_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth5,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH5_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth8,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH8_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth9,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH9_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
+
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_ADVANCED_DEVICE_SUBTITLE);
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth0,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH0_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth2,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH2_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = RESET_REQUIRED,
+    endcheckbox;
+
+    checkbox varid = MonoAcpiDeviceConfig.Eth3,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH3_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
+      flags  = RESET_REQUIRED,
+    endcheckbox;
+  endform;
+
+  form formid = MONO_CONFIG_FORM_ID_ADVANCED,
+    title  = STRING_TOKEN (STR_MONO_CONFIG_ADVANCED_TITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_ADVANCED_SUBTITLE);
+    subtitle text = STRING_TOKEN (STR_MONO_CONFIG_SCAFFOLD_NOTE);
+  endform;
+endformset;

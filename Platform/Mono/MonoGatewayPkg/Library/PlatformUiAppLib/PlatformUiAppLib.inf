@@ -1,0 +1,27 @@
+#/** @file
+#
+#  Mono UiApp platform extension scaffold.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+#**/
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = PlatformUiAppLib
+  FILE_GUID                      = 31A5457E-7969-49AF-B622-0F1C48AF40FD
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = NULL|DXE_DRIVER UEFI_APPLICATION
+  CONSTRUCTOR                    = PlatformUiAppLibConstructor
+  DESTRUCTOR                     = PlatformUiAppLibDestructor
+
+[Sources]
+  PlatformUiAppLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  DebugLib
+

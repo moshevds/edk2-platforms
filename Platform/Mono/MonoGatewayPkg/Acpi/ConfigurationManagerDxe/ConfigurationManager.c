@@ -121,6 +121,39 @@ STATIC CONST CHAR8  *mMonoAcpiTableNames[MonoAcpiTableCount] = {
 };
 
 STATIC
+UINT64
+NormalizeAcpiDeviceMask (
+  IN UINT64  EnabledMask
+  )
+{
+  EnabledMask &= MONO_ACPI_DEVICE_MASK_ALL;
+
+  if ((EnabledMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceI2c1)) == 0) {
+    EnabledMask &= ~(
+                     MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp0) |
+                     MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp1)
+                     );
+  }
+
+  if ((EnabledMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceGpio2)) == 0) {
+    EnabledMask &= ~(
+                     MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp0) |
+                     MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp1)
+                     );
+  }
+
+  if ((EnabledMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp0)) == 0) {
+    EnabledMask &= ~MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceEth8);
+  }
+
+  if ((EnabledMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp1)) == 0) {
+    EnabledMask &= ~MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceEth9);
+  }
+
+  return EnabledMask;
+}
+
+STATIC
 UINT32
 GetDefaultAcpiTableMask (
   VOID
@@ -204,6 +237,64 @@ LoadAcpiTableMask (
   }
 
   EnabledMask = Config.EnabledMask & MONO_ACPI_TABLE_MASK_ALL;
+  return EnabledMask;
+}
+
+STATIC
+UINT64
+LoadAcpiDeviceMask (
+  VOID
+  )
+{
+  MONO_ACPI_DEVICE_CONFIG  Config;
+  EFI_STATUS               Status;
+  UINTN                    DataSize;
+
+  Config.Revision = 0;
+  Config.EnabledMask = 0;
+  DataSize = sizeof (Config);
+  Status = gRT->GetVariable (
+                  MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                  &gMonoGatewayTokenSpaceGuid,
+                  NULL,
+                  &DataSize,
+                  &Config
+                  );
+  if (EFI_ERROR (Status)) {
+    return MONO_ACPI_DEVICE_MASK_DEFAULT;
+  }
+
+  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO ACPI: ignoring invalid device config variable size=%u revision=%u\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return MONO_ACPI_DEVICE_MASK_DEFAULT;
+  }
+
+  return NormalizeAcpiDeviceMask (Config.EnabledMask);
+}
+
+STATIC
+UINT32
+ApplyDeviceTableImplications (
+  IN UINT32  EnabledMask,
+  IN UINT64  DeviceMask
+  )
+{
+  if ((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUart0)) == 0) {
+    EnabledMask &= ~(
+                     MONO_ACPI_TABLE_BIT (MonoAcpiTableDbg2) |
+                     MONO_ACPI_TABLE_BIT (MonoAcpiTableSpcr)
+                     );
+  }
+
+  if ((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDevicePcie2)) == 0) {
+    EnabledMask &= ~MONO_ACPI_TABLE_BIT (MonoAcpiTableMcfg);
+  }
+
   return EnabledMask;
 }
 
@@ -292,10 +383,12 @@ InitializePlatformRepository (
 {
   MONO_PLATFORM_REPOSITORY_INFO  *PlatformRepo;
   UINT32                         EnabledMask;
+  UINT64                         DeviceMask;
 
   PlatformRepo = This->PlatRepoInfo;
   PlatformRepo->BoardRevision = 0;
-  EnabledMask = LoadAcpiTableMask ();
+  DeviceMask = LoadAcpiDeviceMask ();
+  EnabledMask = ApplyDeviceTableImplications (LoadAcpiTableMask (), DeviceMask);
   ApplyAcpiTableMask (PlatformRepo, EnabledMask);
 
   DEBUG ((
@@ -311,9 +404,10 @@ InitializePlatformRepository (
     ));
   DEBUG ((
     DEBUG_INFO,
-    "MONO ACPI: TableList count=%u mask=0x%x\n",
+    "MONO ACPI: TableList count=%u mask=0x%x device-mask=0x%Lx\n",
     PlatformRepo->CmAcpiTableCount,
-    EnabledMask
+    EnabledMask,
+    DeviceMask
     ));
 
   return ValidatePlatformRepository (PlatformRepo);

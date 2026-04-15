@@ -17,6 +17,14 @@
     Return (Zero) \
   }
 
+#define MONO_STA_FLAG(Flag) \
+  Method (_STA, 0, NotSerialized) { \
+    If (Flag) { \
+      Return (0x0F) \
+    } \
+    Return (Zero) \
+  }
+
 #define MONO_PROP_COMPAT1(Str0) \
   Package (2) { "compatible", Package () { Str0 } }
 
@@ -807,7 +815,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, Zero)
         Name (_CCA, One)
-        MONO_STA_DISABLED
+        MONO_STA_FLAG (EN00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE0000, 0x00001000)
@@ -850,7 +858,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, One)
         Name (_CCA, One)
-        MONO_STA_PRESENT
+        MONO_STA_FLAG (EN01)
         MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33)
 
         Name (RBUF, ResourceTemplate () {
@@ -913,7 +921,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x02)
         Name (_CCA, One)
-        MONO_STA_DISABLED
+        MONO_STA_FLAG (EN02)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE4000, 0x00001000)
@@ -956,7 +964,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x03)
         Name (_CCA, One)
-        MONO_STA_DISABLED
+        MONO_STA_FLAG (EN03)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE6000, 0x00001000)
@@ -999,7 +1007,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x04)
         Name (_CCA, One)
-        MONO_STA_PRESENT
+        MONO_STA_FLAG (EN04)
         MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31)
 
         Name (RBUF, ResourceTemplate () {
@@ -1062,7 +1070,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x05)
         Name (_CCA, One)
-        MONO_STA_PRESENT
+        MONO_STA_FLAG (EN05)
         MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32)
 
         Name (RBUF, ResourceTemplate () {
@@ -1147,7 +1155,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x08)
         Name (_CCA, One)
-        MONO_STA_PRESENT
+        MONO_STA_FLAG (EN08)
         MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34)
 
         Name (RBUF, ResourceTemplate () {
@@ -1211,7 +1219,7 @@
         Name (_HID, "PRP0001")
         Name (_UID, 0x09)
         Name (_CCA, One)
-        MONO_STA_PRESENT
+        MONO_STA_FLAG (EN09)
         MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35)
 
         Name (RBUF, ResourceTemplate () {
@@ -1287,7 +1295,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, Zero)
           Name (_CCA, One)
-          MONO_STA_DISABLED
+          MONO_STA_FLAG (EN00)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1301,7 +1309,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, One)
           Name (_CCA, One)
-          MONO_STA_PRESENT
+          MONO_STA_FLAG (EN01)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1315,7 +1323,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x02)
           Name (_CCA, One)
-          MONO_STA_DISABLED
+          MONO_STA_FLAG (EN02)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1329,7 +1337,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x03)
           Name (_CCA, One)
-          MONO_STA_DISABLED
+          MONO_STA_FLAG (EN03)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1343,7 +1351,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x04)
           Name (_CCA, One)
-          MONO_STA_PRESENT
+          MONO_STA_FLAG (EN04)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1357,7 +1365,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x05)
           Name (_CCA, One)
-          MONO_STA_PRESENT
+          MONO_STA_FLAG (EN05)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1371,7 +1379,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x08)
           Name (_CCA, One)
-          MONO_STA_PRESENT
+          MONO_STA_FLAG (EN08)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {
@@ -1385,7 +1393,7 @@
           Name (_HID, "PRP0001")
           Name (_UID, 0x09)
           Name (_CCA, One)
-          MONO_STA_PRESENT
+          MONO_STA_FLAG (EN09)
 
           Name (_DSD, Package () {
             ToUUID (MONO_ACPI_DSD_UUID), Package () {

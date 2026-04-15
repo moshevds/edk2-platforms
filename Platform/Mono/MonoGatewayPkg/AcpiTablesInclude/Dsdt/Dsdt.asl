@@ -13,6 +13,13 @@
   Method (_STA, 0, NotSerialized) { \
     Return (0x0F) \
   }
+#define MONO_DSDT_STA_FLAG(Flag) \
+  Method (_STA, 0, NotSerialized) { \
+    If (Flag) { \
+      Return (0x0F) \
+    } \
+    Return (Zero) \
+  }
 #define MONO_DSDT_PROP_COMPAT1(Str0) \
   Package (2) { "compatible", Package () { Str0 } }
 #define MONO_DSDT_PROP_COMPAT2(Str0, Str1) \
@@ -30,6 +37,30 @@
 
 DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_OEM_REVISION) {
   Scope (_SB) {
+    Name (EDU0, One)
+    Name (EUSB, One)
+    Name (EDSP, One)
+    Name (EQSP, One)
+    Name (EMMC, One)
+    Name (EGP2, One)
+    Name (EI20, One)
+    Name (EI21, One)
+    Name (EI22, One)
+    Name (EI23, One)
+    Name (ERTC, One)
+    Name (EWDT, One)
+    Name (EPC2, One)
+    Name (ESF0, One)
+    Name (ESF1, One)
+    Name (EN00, Zero)
+    Name (EN01, One)
+    Name (EN02, Zero)
+    Name (EN03, Zero)
+    Name (EN04, One)
+    Name (EN05, One)
+    Name (EN08, One)
+    Name (EN09, One)
+
     Device (C000) {
       Name (_HID, "ACPI0007")
       Name (_UID, MONO_CPU0_UID)
@@ -67,9 +98,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0018")
       Name (_UID, Zero)
       Name (_CCA, One)
-      Method (_STA, 0, NotSerialized) {
-        Return (0x0F)
-      }
+      MONO_DSDT_STA_FLAG (EDU0)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, UART0_BASE, UART_LEN)
@@ -93,9 +122,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      Method (_STA, 0, NotSerialized) {
-        Return (0x0F)
-      }
+      MONO_DSDT_STA_FLAG (EUSB)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, USB0_BASE, USB_LEN)
@@ -122,7 +149,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EDSP)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, DSPI0_BASE, DSPI_LEN)
@@ -145,7 +172,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EQSP)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, QSPI0_BASE, QSPI_LEN)
@@ -168,7 +195,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EMMC)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, ESDHC0_BASE, ESDHC_LEN)
@@ -193,7 +220,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, 0x02)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EGP2)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, 0x02320000, 0x00010000)
@@ -219,7 +246,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EI20)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, I2C0_BASE, I2C_LEN)
@@ -243,7 +270,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0001")
       Name (_UID, One)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EI21)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, 0x02190000, 0x00010000)
@@ -266,7 +293,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
 
       Device (MUX0) {
         Name (_HID, "PRP0001")
-        MONO_DSDT_STA_PRESENT
+        MONO_DSDT_STA_FLAG (EI21)
 
         Name (_DSD, Package () {
           ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
@@ -280,12 +307,12 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
 
         Device (CH00) {
           Name (_ADR, Zero)
-          MONO_DSDT_STA_PRESENT
+          MONO_DSDT_STA_FLAG (EI21)
         }
 
         Device (CH01) {
           Name (_ADR, One)
-          MONO_DSDT_STA_PRESENT
+          MONO_DSDT_STA_FLAG (EI21)
         }
       }
     }
@@ -294,7 +321,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0001")
       Name (_UID, 0x02)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EI22)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, I2C2_BASE, I2C_LEN)
@@ -318,7 +345,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0001")
       Name (_UID, 0x03)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EI23)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, I2C3_BASE, I2C_LEN)
@@ -342,7 +369,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "NXP0014")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (ERTC)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, FTMRTC0_BASE, FTMRTC_LEN)
@@ -365,7 +392,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (EWDT)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, WDOG0_BASE, WDOG_LEN)
@@ -386,7 +413,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     Device (SFP0) {
       Name (_HID, "PRP0001")
       Name (_UID, Zero)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (ESF0)
 
       Name (_DSD, Package () {
         ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
@@ -403,7 +430,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     Device (SFP1) {
       Name (_HID, "PRP0001")
       Name (_UID, One)
-      MONO_DSDT_STA_PRESENT
+      MONO_DSDT_STA_FLAG (ESF1)
 
       Name (_DSD, Package () {
         ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
@@ -425,9 +452,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Name (_UID, "PCI2")
       Name (_CCA, One)
 
-      Method (_STA, 0, NotSerialized) {
-        Return (0x0F)
-      }
+      MONO_DSDT_STA_FLAG (EPC2)
 
       Method (_CBA, 0, NotSerialized) {
         Return (MONO_PCIE3_CONFIG_BASE)
@@ -486,9 +511,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Device (RP00) {
         Name (_ADR, Zero)
         Name (_SUN, MONO_PCIE3_SLOT)
-        Method (_STA, 0, NotSerialized) {
-          Return (0x0F)
-        }
+        MONO_DSDT_STA_FLAG (EPC2)
       }
     }
 

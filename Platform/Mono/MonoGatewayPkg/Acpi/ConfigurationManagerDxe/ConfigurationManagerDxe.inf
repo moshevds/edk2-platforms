@@ -34,9 +34,11 @@
 
 [Protocols]
   gEdkiiConfigurationManagerProtocolGuid
+  gEfiVariableArchProtocolGuid
+  gEfiVariableWriteArchProtocolGuid
 
 [Guids]
   gMonoGatewayTokenSpaceGuid
 
 [Depex]
-  TRUE
+  gEfiVariableArchProtocolGuid AND gEfiVariableWriteArchProtocolGuid

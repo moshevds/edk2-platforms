@@ -391,6 +391,7 @@
       NULL|MdeModulePkg/Library/DeviceManagerUiLib/DeviceManagerUiLib.inf
       NULL|MdeModulePkg/Library/BootManagerUiLib/BootManagerUiLib.inf
       NULL|MdeModulePkg/Library/BootMaintenanceManagerUiLib/BootMaintenanceManagerUiLib.inf
+      NULL|Platform/Mono/MonoGatewayPkg/Library/PlatformUiAppLib/PlatformUiAppLib.inf
   }
   MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
 

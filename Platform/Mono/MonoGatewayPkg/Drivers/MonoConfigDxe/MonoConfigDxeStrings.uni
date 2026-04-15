@@ -1,0 +1,62 @@
+// /** @file
+//
+//  Mono configuration menu HII scaffold.
+//
+//  SPDX-License-Identifier: BSD-2-Clause-Patent
+//
+// **/
+
+/langdef en-US "English"
+
+#string STR_MONO_CONFIG_TITLE             #language en-US "Mono Device Configuration"
+#string STR_MONO_CONFIG_HELP              #language en-US "Mono platform configuration menu."
+#string STR_MONO_CONFIG_SUBTITLE          #language en-US "Configure Mono ACPI table policy and user-visible ACPI devices."
+#string STR_MONO_CONFIG_ACPI_TABLES_TITLE #language en-US "ACPI Tables"
+#string STR_MONO_CONFIG_ACPI_TABLES_HELP  #language en-US "Configure table-level ACPI publication policy."
+#string STR_MONO_CONFIG_ACPI_TABLES_SUBTITLE #language en-US "Control which top-level ACPI tables Mono publishes on the next boot."
+#string STR_MONO_CONFIG_ACPI_DEVICES_TITLE #language en-US "ACPI Devices"
+#string STR_MONO_CONFIG_ACPI_DEVICES_HELP  #language en-US "Configure user-visible devices and translate those choices into ACPI."
+#string STR_MONO_CONFIG_ACPI_DEVICES_SUBTITLE #language en-US "Enable or disable user-visible devices. AML helper objects remain derived from this policy."
+#string STR_MONO_CONFIG_ADVANCED_TITLE    #language en-US "Advanced ACPI Objects"
+#string STR_MONO_CONFIG_ADVANCED_HELP     #language en-US "Reserved for future expert-mode ACPI diagnostics and derived-object inspection."
+#string STR_MONO_CONFIG_ADVANCED_SUBTITLE #language en-US "Internal AML objects such as MAC, PCS, PHY, mux, and portal state will remain derived by default."
+#string STR_MONO_CONFIG_SCAFFOLD_NOTE     #language en-US "Scaffold only. Variable-backed controls and AML patching are the next implementation step."
+#string STR_MONO_CONFIG_EXIT_HINT         #language en-US "Press ESC to return."
+#string STR_MONO_CONFIG_RESET_NOTE        #language en-US "Changes are stored immediately and take effect on the next boot."
+#string STR_MONO_CONFIG_CORE_DEVICES_SUBTITLE #language en-US "Core user-visible devices"
+#string STR_MONO_CONFIG_ADVANCED_DEVICE_SUBTITLE #language en-US "Advanced Ethernet devices currently compiled disabled in AML by default"
+
+#string STR_MONO_TABLE_HELP               #language en-US "Enable or disable publication of this ACPI table on the next boot."
+#string STR_MONO_TABLE_FADT_PROMPT        #language en-US "FADT"
+#string STR_MONO_TABLE_GTDT_PROMPT        #language en-US "GTDT"
+#string STR_MONO_TABLE_MADT_PROMPT        #language en-US "MADT"
+#string STR_MONO_TABLE_MCFG_PROMPT        #language en-US "MCFG"
+#string STR_MONO_TABLE_DBG2_PROMPT        #language en-US "DBG2"
+#string STR_MONO_TABLE_SPCR_PROMPT        #language en-US "SPCR"
+#string STR_MONO_TABLE_PPTT_PROMPT        #language en-US "PPTT"
+#string STR_MONO_TABLE_DSDT_PROMPT        #language en-US "DSDT"
+
+#string STR_MONO_DEVICE_HELP              #language en-US "Enable or disable this user-visible device in ACPI on the next boot."
+#string STR_MONO_DEVICE_UART0_PROMPT      #language en-US "UART0 console"
+#string STR_MONO_DEVICE_USB0_PROMPT       #language en-US "USB controller"
+#string STR_MONO_DEVICE_DSPI0_PROMPT      #language en-US "DSPI controller"
+#string STR_MONO_DEVICE_QSPI0_PROMPT      #language en-US "QSPI controller"
+#string STR_MONO_DEVICE_EMMC0_PROMPT      #language en-US "eMMC controller"
+#string STR_MONO_DEVICE_GPIO2_PROMPT      #language en-US "GPIO2 controller"
+#string STR_MONO_DEVICE_I2C0_PROMPT       #language en-US "I2C0 controller"
+#string STR_MONO_DEVICE_I2C1_PROMPT       #language en-US "I2C1 controller"
+#string STR_MONO_DEVICE_I2C2_PROMPT       #language en-US "I2C2 controller"
+#string STR_MONO_DEVICE_I2C3_PROMPT       #language en-US "I2C3 controller"
+#string STR_MONO_DEVICE_RTC0_PROMPT       #language en-US "RTC"
+#string STR_MONO_DEVICE_WDT0_PROMPT       #language en-US "Watchdog"
+#string STR_MONO_DEVICE_PCIE2_PROMPT      #language en-US "PCIe2 root complex"
+#string STR_MONO_DEVICE_SFP0_PROMPT       #language en-US "SFP0 cage"
+#string STR_MONO_DEVICE_SFP1_PROMPT       #language en-US "SFP1 cage"
+#string STR_MONO_DEVICE_ETH0_PROMPT       #language en-US "Ethernet port ETH0"
+#string STR_MONO_DEVICE_ETH1_PROMPT       #language en-US "Ethernet port ETH1"
+#string STR_MONO_DEVICE_ETH2_PROMPT       #language en-US "Ethernet port ETH2"
+#string STR_MONO_DEVICE_ETH3_PROMPT       #language en-US "Ethernet port ETH3"
+#string STR_MONO_DEVICE_ETH4_PROMPT       #language en-US "Ethernet port ETH4"
+#string STR_MONO_DEVICE_ETH5_PROMPT       #language en-US "Ethernet port ETH5"
+#string STR_MONO_DEVICE_ETH8_PROMPT       #language en-US "Ethernet port ETH8"
+#string STR_MONO_DEVICE_ETH9_PROMPT       #language en-US "Ethernet port ETH9"

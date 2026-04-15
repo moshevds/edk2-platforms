@@ -28,10 +28,114 @@ typedef enum {
 
 #define MONO_ACPI_TABLE_BIT(TableId)  (1U << (TableId))
 #define MONO_ACPI_TABLE_MASK_ALL      ((1U << MonoAcpiTableCount) - 1U)
+#define MONO_ACPI_TABLE_MASK_DEFAULT  MONO_ACPI_TABLE_MASK_ALL
+
+#pragma pack(1)
+typedef struct {
+  UINT32    Fadt : 1;
+  UINT32    Gtdt : 1;
+  UINT32    Madt : 1;
+  UINT32    Mcfg : 1;
+  UINT32    Dbg2 : 1;
+  UINT32    Spcr : 1;
+  UINT32    Pptt : 1;
+  UINT32    Dsdt : 1;
+  UINT32    Reserved : 24;
+} MONO_ACPI_TABLE_FLAGS;
+#pragma pack()
 
 typedef struct {
   UINT32    Revision;
-  UINT32    EnabledMask;
+  union {
+    UINT32                   EnabledMask;
+    MONO_ACPI_TABLE_FLAGS    Tables;
+  };
 } MONO_ACPI_TABLE_CONFIG;
+
+#define MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME  L"MonoAcpiDeviceConfig"
+#define MONO_ACPI_DEVICE_CONFIG_REVISION       1U
+
+typedef enum {
+  //
+  // Core user-visible devices
+  //
+  MonoAcpiDeviceUart0 = 0,
+  MonoAcpiDeviceUsb0,
+  MonoAcpiDeviceDspi0,
+  MonoAcpiDeviceQspi0,
+  MonoAcpiDeviceEmmc0,
+  MonoAcpiDeviceGpio2,
+  MonoAcpiDeviceI2c0,
+  MonoAcpiDeviceI2c1,
+  MonoAcpiDeviceI2c2,
+  MonoAcpiDeviceI2c3,
+  MonoAcpiDeviceRtc0,
+  MonoAcpiDeviceWdt0,
+  MonoAcpiDevicePcie2,
+  MonoAcpiDeviceSfp0,
+  MonoAcpiDeviceSfp1,
+  MonoAcpiDeviceEth1,
+  MonoAcpiDeviceEth4,
+  MonoAcpiDeviceEth5,
+  MonoAcpiDeviceEth8,
+  MonoAcpiDeviceEth9,
+
+  //
+  // Second-phase advanced devices currently compiled disabled in AML.
+  //
+  MonoAcpiDeviceEth0,
+  MonoAcpiDeviceEth2,
+  MonoAcpiDeviceEth3,
+
+  MonoAcpiDeviceCount
+} MONO_ACPI_DEVICE_ID;
+
+#define MONO_ACPI_DEVICE_BIT(DeviceId)  (1ULL << (DeviceId))
+#define MONO_ACPI_DEVICE_MASK_ALL       ((1ULL << MonoAcpiDeviceCount) - 1ULL)
+#define MONO_ACPI_DEVICE_MASK_DEFAULT   ( \
+    MONO_ACPI_DEVICE_MASK_ALL & \
+    ~(MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceEth0) | \
+      MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceEth2) | \
+      MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceEth3)) \
+    )
+
+#pragma pack(1)
+typedef struct {
+  UINT32    Uart0 : 1;
+  UINT32    Usb0 : 1;
+  UINT32    Dspi0 : 1;
+  UINT32    Qspi0 : 1;
+  UINT32    Emmc0 : 1;
+  UINT32    Gpio2 : 1;
+  UINT32    I2c0 : 1;
+  UINT32    I2c1 : 1;
+  UINT32    I2c2 : 1;
+  UINT32    I2c3 : 1;
+  UINT32    Rtc0 : 1;
+  UINT32    Wdt0 : 1;
+  UINT32    Pcie2 : 1;
+  UINT32    Sfp0 : 1;
+  UINT32    Sfp1 : 1;
+  UINT32    Eth1 : 1;
+  UINT32    Eth4 : 1;
+  UINT32    Eth5 : 1;
+  UINT32    Eth8 : 1;
+  UINT32    Eth9 : 1;
+  UINT32    ReservedLow : 12;
+  UINT32    Eth0 : 1;
+  UINT32    Eth2 : 1;
+  UINT32    Eth3 : 1;
+  UINT32    ReservedHigh : 29;
+} MONO_ACPI_DEVICE_FLAGS;
+#pragma pack()
+
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  union {
+    UINT64                    EnabledMask;
+    MONO_ACPI_DEVICE_FLAGS    Devices;
+  };
+} MONO_ACPI_DEVICE_CONFIG;
 
 #endif

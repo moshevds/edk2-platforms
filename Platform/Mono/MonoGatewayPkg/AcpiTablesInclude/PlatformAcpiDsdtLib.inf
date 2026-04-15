@@ -25,5 +25,11 @@
   MdeModulePkg/MdeModulePkg.dec
   Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
 
+[Guids]
+  gMonoGatewayTokenSpaceGuid
+
 [LibraryClasses]
   BaseLib
+  BaseMemoryLib
+  MemoryAllocationLib
+  UefiRuntimeServicesTableLib

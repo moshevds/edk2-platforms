@@ -1,0 +1,51 @@
+## @file
+#  Mono configuration menu HII scaffold.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = MonoConfigDxe
+  MODULE_UNI_FILE                = MonoConfigDxeStrings.uni
+  FILE_GUID                      = 0D30D8D7-21BA-4D14-B9A3-CC34978833BE
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = MonoConfigDxeEntryPoint
+  UNLOAD_IMAGE                   = MonoConfigDxeUnload
+
+[Sources]
+  MonoConfigDxe.c
+  MonoConfigDxe.h
+  MonoConfigDxeHii.vfr
+  MonoConfigDxeStrings.uni
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  HiiLib
+  MemoryAllocationLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Guids]
+  gEfiIfrFrontPageGuid
+  gMonoGatewayTokenSpaceGuid
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiHiiConfigAccessProtocolGuid
+  gEfiHiiConfigRoutingProtocolGuid
+  gEfiVariableArchProtocolGuid
+  gEfiVariableWriteArchProtocolGuid
+
+[Depex]
+  gEfiHiiConfigRoutingProtocolGuid AND gEfiVariableArchProtocolGuid AND gEfiVariableWriteArchProtocolGuid
