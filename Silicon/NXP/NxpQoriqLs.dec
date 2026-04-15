@@ -17,8 +17,17 @@
   ##  @libraryclass  Provides Chassis specific functions to other modules
   ChassisLib|Include/Library/ChassisLib.h
 
+  ##  @libraryclass  Provides board-specific clock/personality hooks
+  FpgaLib|Include/Library/FpgaLib.h
+
+  ##  @libraryclass  Provides SoC clock frequencies to other modules
+  SocClockLib|Include/Library/SocClockLib.h
+
   ##  @libraryclass  Provides services to read/write to I2c devices
   I2cLib|Include/Library/I2cLib.h
+
+  ##  @libraryclass  Provides services for the NXP SDHC/eMMC host controller
+  MmcLib|Include/Library/MmcLib.h
 
 [Guids.common]
   gNxpQoriqLsTokenSpaceGuid      = {0x98657342, 0x4aee, 0x4fc6, {0xbc, 0xb5, 0xff, 0x45, 0xb7, 0xa8, 0x71, 0xf2}}
@@ -38,6 +47,11 @@
   gNxpQoriqLsTokenSpaceGuid.PcdScfgBigEndian|FALSE|BOOLEAN|0x00000320
 
 [PcdsFixedAtBuild.common]
+  # Pcds for base SoC blocks
+  gNxpQoriqLsTokenSpaceGuid.PcdGutsBaseAddr|0x0|UINT64|0x00000100
+  gNxpQoriqLsTokenSpaceGuid.PcdClkBaseAddr|0x0|UINT64|0x00000103
+  gNxpQoriqLsTokenSpaceGuid.PcdScfgBaseAddr|0x0|UINT64|0x00000107
+
   # Pcds for PCI Express
   gNxpQoriqLsTokenSpaceGuid.PcdPciExp1BaseAddr|0x0|UINT64|0x00000500
   gNxpQoriqLsTokenSpaceGuid.PcdNumPciController|0|UINT32|0x00000501
@@ -61,6 +75,12 @@
   gNxpQoriqLsTokenSpaceGuid.PcdSataSize|0x0|UINT32|0x00000351
   gNxpQoriqLsTokenSpaceGuid.PcdNumSataController|0x0|UINT32|0x00000352
 
+  # Pcds for SDHC/eMMC
+  gNxpQoriqLsTokenSpaceGuid.PcdSdxcBaseAddr|0x0|UINT64|0x00000353
+  gNxpQoriqLsTokenSpaceGuid.PcdEMmcBaseAddr|0x0|UINT64|0x00000354
+  gNxpQoriqLsTokenSpaceGuid.PcdMmcBigEndian|FALSE|BOOLEAN|0x00000603
+  gNxpQoriqLsTokenSpaceGuid.PcdSdxcIOReliabilityErratum|FALSE|BOOLEAN|0x00000604
+
   #
   # Pcds for Gpio
   #
@@ -72,3 +92,5 @@
   gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable|FALSE|BOOLEAN|0x00000600
   gNxpQoriqLsTokenSpaceGuid.PcdPciLsGen4Ctrl|FALSE|BOOLEAN|0x00000601
   gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort|FALSE|BOOLEAN|0x00000602
+
+[PcdsFeatureFlag]

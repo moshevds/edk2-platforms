@@ -33,7 +33,11 @@
 
 [LibraryClasses.common]
   ArmPlatformLib|Platform/Mono/MonoGatewayPkg/Library/ArmPlatformLib/ArmPlatformLib.inf
+  FpgaLib|Platform/Mono/MonoGatewayPkg/Library/FpgaLib/FpgaLib.inf
+  FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf
   RealTimeClockLib|Platform/Mono/MonoGatewayPkg/Library/Pcf2131RtcLib/Pcf2131RtcLib.inf
+  SocClockLib|Silicon/NXP/LS1046A/Library/SocClockLib/SocClockLib.inf
+  MmcLib|Silicon/NXP/Library/MmcLib/MmcLib.inf
   BaseCryptLib|CryptoPkg/Library/BaseCryptLib/BaseCryptLib.inf
   OpensslLib|CryptoPkg/Library/OpensslLib/OpensslLib.inf
   IntrinsicLib|CryptoPkg/Library/IntrinsicLib/IntrinsicLib.inf
@@ -61,6 +65,13 @@
 [PcdsFixedAtBuild.common]
   gEmbeddedTokenSpaceGuid.PcdDmaDeviceOffset|0x0
   gEmbeddedTokenSpaceGuid.PcdDmaDeviceLimit|0xffffffff
+  gNxpQoriqLsTokenSpaceGuid.PcdClkBaseAddr|0x01EE1000
+  gNxpQoriqLsTokenSpaceGuid.PcdScfgBaseAddr|0x01570000
+  gNxpQoriqLsTokenSpaceGuid.PcdGutsBaseAddr|0x01EE0000
+  gNxpQoriqLsTokenSpaceGuid.PcdSdxcBaseAddr|0x0
+  gNxpQoriqLsTokenSpaceGuid.PcdEMmcBaseAddr|0x01560000
+  gNxpQoriqLsTokenSpaceGuid.PcdMmcBigEndian|TRUE
+  gNxpQoriqLsTokenSpaceGuid.PcdSdxcIOReliabilityErratum|FALSE
   gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x02F00000
   gNxpQoriqLsTokenSpaceGuid.PcdUsbSize|0x00100000
   gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|1
@@ -97,9 +108,16 @@
   # Architectural Protocols
   #
   MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf {
+    <LibraryClasses>
+    NULL|MdeModulePkg/Library/VarCheckUefiLib/VarCheckUefiLib.inf
+    NULL|EmbeddedPkg/Library/NvVarStoreFormattedLib/NvVarStoreFormattedLib.inf
     <PcdsFixedAtBuild>
-    gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
+    gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|FALSE
   }
+  MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
+  Platform/Mono/MonoGatewayPkg/Drivers/EmmcVarStoreDxe/EmmcVarStoreDxe.inf
+  Silicon/NXP/Drivers/MmcHostDxe/MmcHostDxe.inf
+  EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
 
   Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
   SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf {
@@ -120,3 +138,8 @@
   Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
   Platform/Mono/MonoGatewayPkg/Application/MonoDtManager/MonoDtManager.inf
 ##
+
+[PcdsDynamicDefault.common]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64|0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64|0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64|0

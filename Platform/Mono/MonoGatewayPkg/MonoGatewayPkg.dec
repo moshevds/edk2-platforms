@@ -25,6 +25,8 @@
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxSlaveAddress|0x70|UINT8|0x00000002
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cMuxChannel|0x04|UINT8|0x00000003
   gMonoGatewayTokenSpaceGuid.PcdRtcI2cBusFrequency|100000|UINT32|0x00000004
+  gMonoGatewayTokenSpaceGuid.PcdNvStorageEmmcOffset|0x00300000|UINT64|0x00000006
+  gMonoGatewayTokenSpaceGuid.PcdNvStorageEmmcSize|0x000C0000|UINT32|0x00000007
 
 ################################################################################
 #

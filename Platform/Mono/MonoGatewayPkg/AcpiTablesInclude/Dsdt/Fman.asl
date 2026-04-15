@@ -748,7 +748,7 @@
       }
 
       Device (MDFB) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xFD0)
         MONO_STA_PRESENT
 
@@ -766,19 +766,40 @@
           }
         })
 
-        Device (EPH0) {
+        Device (PHY0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("ethernet-phy-id67c9.df10"),
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
 
-        Device (EPH1) {
+        Device (PHY1) {
           Name (_ADR, One)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("ethernet-phy-id67c9.df10"),
+              MONO_PROP_U32 ("reg", One)
+            }
+          })
         }
 
-        Device (EPH2) {
+        Device (PHY2) {
           Name (_ADR, 0x02)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_COMPAT1 ("ethernet-phy-id67c9.df10"),
+              MONO_PROP_U32 ("reg", 0x02)
+            }
+          })
         }
       }
 
@@ -806,7 +827,7 @@
       }
 
       Device (MD00) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xE10)
         MONO_STA_PRESENT
 
@@ -847,7 +868,7 @@
             MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G1, T1G1),
             MONO_PROP_REF ("ptp-timer", PTMR),
             MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD01.PCS0),
-            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH2),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.PHY2),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
@@ -858,7 +879,7 @@
       }
 
       Device (MD01) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xE30)
         MONO_STA_PRESENT
 
@@ -879,6 +900,12 @@
         Device (PCS0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
       }
 
@@ -906,7 +933,7 @@
       }
 
       Device (MD02) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xE50)
         MONO_STA_PRESENT
 
@@ -949,7 +976,7 @@
       }
 
       Device (MD03) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xE70)
         MONO_STA_PRESENT
 
@@ -989,8 +1016,8 @@
             MONO_PROP_U32 ("cell-index", 0x04),
             MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G4, T1G4),
             MONO_PROP_REF ("ptp-timer", PTMR),
-            MONO_PROP_REF_ARR2 ("pcsphy-handle", \_SB.FMAN.MD04.PCS0, \_SB.FMAN.MD05.PCS1),
-            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH0),
+            MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD04.PCS0),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.PHY0),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
@@ -1001,7 +1028,7 @@
       }
 
       Device (MD04) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xE90)
         MONO_STA_PRESENT
 
@@ -1022,6 +1049,12 @@
         Device (PCS0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
       }
 
@@ -1046,8 +1079,8 @@
             MONO_PROP_U32 ("cell-index", 0x05),
             MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R1G5, T1G5),
             MONO_PROP_REF ("ptp-timer", PTMR),
-            MONO_PROP_REF_ARR2 ("pcsphy-handle", \_SB.FMAN.MD05.PCS0, \_SB.FMAN.MD05.PCS0),
-            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.EPH1),
+            MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD05.PCS0),
+            MONO_PROP_REF ("phy-handle", \_SB.FMAN.MDFB.PHY1),
             MONO_PROP_STR ("phy-mode", "sgmii"),
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
@@ -1058,7 +1091,7 @@
       }
 
       Device (MD05) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xEB0)
         MONO_STA_PRESENT
 
@@ -1079,16 +1112,34 @@
         Device (PCS0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
 
         Device (PCS1) {
           Name (_ADR, One)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", One)
+            }
+          })
         }
 
         Device (PCS2) {
           Name (_ADR, 0x02)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", 0x02)
+            }
+          })
         }
       }
 
@@ -1108,14 +1159,16 @@
         }
 
         Name (_DSD, Package (0x04) {
-          ToUUID (MONO_ACPI_DSD_UUID), Package (0x07) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x09) {
             MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x08),
             MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R10A, T10A),
             MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD08.PCS0),
-            MONO_PROP_STR ("phy-mode", "xgmii"),
-            MONO_PROP_STR ("phy-connection-type", "xgmii"),
-            MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
+            MONO_PROP_REF ("sfp", \_SB.SFP0),
+            MONO_PROP_STR ("pcs-handle-names", "xfi"),
+            MONO_PROP_STR ("phy-mode", "10gbase-r"),
+            MONO_PROP_STR ("phy-connection-type", "10gbase-r"),
+            MONO_PROP_STR ("managed", "in-band-status")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
           MONO_PROP_STR ("local-mac-address", "LMAC")
@@ -1124,7 +1177,7 @@
       }
 
       Device (MD08) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xF10)
         MONO_STA_PRESENT
 
@@ -1145,6 +1198,12 @@
         Device (PCS0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
       }
 
@@ -1164,14 +1223,16 @@
         }
 
         Name (_DSD, Package (0x04) {
-          ToUUID (MONO_ACPI_DSD_UUID), Package (0x07) {
+          ToUUID (MONO_ACPI_DSD_UUID), Package (0x09) {
             MONO_PROP_COMPAT1 ("beta_fsl,fman-memac"),
             MONO_PROP_U32 ("cell-index", 0x09),
             MONO_PROP_REF_ARR2 ("beta_fsl,fman-ports", R10B, T10B),
-            MONO_PROP_REF_ARR3 ("pcsphy-handle", \_SB.FMAN.MD09.PCS0, \_SB.FMAN.MD05.PCS2, \_SB.FMAN.MD09.PCS0),
-            MONO_PROP_STR ("phy-mode", "xgmii"),
-            MONO_PROP_STR ("phy-connection-type", "xgmii"),
-            MONO_PROP_U32_ARR5 ("fixed-link", Zero, One, 0x2710, Zero, Zero)
+            MONO_PROP_REF ("pcsphy-handle", \_SB.FMAN.MD09.PCS0),
+            MONO_PROP_REF ("sfp", \_SB.SFP1),
+            MONO_PROP_STR ("pcs-handle-names", "xfi"),
+            MONO_PROP_STR ("phy-mode", "10gbase-r"),
+            MONO_PROP_STR ("phy-connection-type", "10gbase-r"),
+            MONO_PROP_STR ("managed", "in-band-status")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
           MONO_PROP_STR ("local-mac-address", "LMAC")
@@ -1180,7 +1241,7 @@
       }
 
       Device (MD09) {
-        Name (_HID, "PRP0001")
+        Name (_HID, "NXP0006")
         Name (_UID, 0xF30)
         MONO_STA_PRESENT
 
@@ -1201,6 +1262,12 @@
         Device (PCS0) {
           Name (_ADR, Zero)
           MONO_STA_PRESENT
+
+          Name (_DSD, Package () {
+            ToUUID (MONO_ACPI_DSD_UUID), Package () {
+              MONO_PROP_U32 ("reg", Zero)
+            }
+          })
         }
       }
 
@@ -1354,16 +1421,16 @@
         }
       })
 
-      Device (QP00) {
+      Device (QP09) {
         Name (_HID, "PRP0001")
-        Name (_UID, Zero)
+        Name (_UID, 0x09)
         Name (_CCA, One)
         MONO_STA_PRESENT
 
         Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500000000, 0x0500003FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504000000, 0x0504003FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 204 }
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500090000, 0x0500093FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504090000, 0x0504093FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 222 }
         })
 
         Method (_CRS, 0, Serialized) {
@@ -1373,175 +1440,7 @@
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
             MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", Zero)
-          }
-        })
-      }
-
-      Device (QP01) {
-        Name (_HID, "PRP0001")
-        Name (_UID, One)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500010000, 0x0500013FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504010000, 0x0504013FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 206 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", One)
-          }
-        })
-      }
-
-      Device (QP02) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x02)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500020000, 0x0500023FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504020000, 0x0504023FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 208 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x02)
-          }
-        })
-      }
-
-      Device (QP03) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x03)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500030000, 0x0500033FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504030000, 0x0504033FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 210 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x03)
-          }
-        })
-      }
-
-      Device (QP04) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x04)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500040000, 0x0500043FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504040000, 0x0504043FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 212 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x04)
-          }
-        })
-      }
-
-      Device (QP05) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x05)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500050000, 0x0500053FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504050000, 0x0504053FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 214 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x05)
-          }
-        })
-      }
-
-      Device (QP06) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x06)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500060000, 0x0500063FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504060000, 0x0504063FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 216 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x06)
-          }
-        })
-      }
-
-      Device (QP07) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x07)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500070000, 0x0500073FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504070000, 0x0504073FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 218 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x07)
+            MONO_PROP_U32 ("cell-index", 0x09)
           }
         })
       }
@@ -1570,16 +1469,16 @@
         })
       }
 
-      Device (QP09) {
+      Device (QP07) {
         Name (_HID, "PRP0001")
-        Name (_UID, 0x09)
+        Name (_UID, 0x07)
         Name (_CCA, One)
         MONO_STA_PRESENT
 
         Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500090000, 0x0500093FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504090000, 0x0504093FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 222 }
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500070000, 0x0500073FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504070000, 0x0504073FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 218 }
         })
 
         Method (_CRS, 0, Serialized) {
@@ -1589,7 +1488,175 @@
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
             MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x09)
+            MONO_PROP_U32 ("cell-index", 0x07)
+          }
+        })
+      }
+
+      Device (QP06) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x06)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500060000, 0x0500063FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504060000, 0x0504063FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 216 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x06)
+          }
+        })
+      }
+
+      Device (QP05) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x05)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500050000, 0x0500053FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504050000, 0x0504053FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 214 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x05)
+          }
+        })
+      }
+
+      Device (QP04) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x04)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500040000, 0x0500043FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504040000, 0x0504043FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 212 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x04)
+          }
+        })
+      }
+
+      Device (QP03) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x03)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500030000, 0x0500033FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504030000, 0x0504033FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 210 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x03)
+          }
+        })
+      }
+
+      Device (QP02) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x02)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500020000, 0x0500023FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504020000, 0x0504023FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 208 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x02)
+          }
+        })
+      }
+
+      Device (QP01) {
+        Name (_HID, "PRP0001")
+        Name (_UID, One)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500010000, 0x0500013FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504010000, 0x0504013FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 206 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", One)
+          }
+        })
+      }
+
+      Device (QP00) {
+        Name (_HID, "PRP0001")
+        Name (_UID, Zero)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0500000000, 0x0500003FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0504000000, 0x0504003FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 204 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,qman-portal-3.2.1", "beta_fsl,qman-portal"),
+            MONO_PROP_U32 ("cell-index", Zero)
           }
         })
       }
@@ -1617,16 +1684,16 @@
         }
       })
 
-      Device (BP00) {
+      Device (BP09) {
         Name (_HID, "PRP0001")
-        Name (_UID, Zero)
+        Name (_UID, 0x09)
         Name (_CCA, One)
         MONO_STA_PRESENT
 
         Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508000000, 0x0508003FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C000000, 0x050C003FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 205 }
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508090000, 0x0508093FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C090000, 0x050C093FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 223 }
         })
 
         Method (_CRS, 0, Serialized) {
@@ -1636,175 +1703,7 @@
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
             MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", Zero)
-          }
-        })
-      }
-
-      Device (BP01) {
-        Name (_HID, "PRP0001")
-        Name (_UID, One)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508010000, 0x0508013FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C010000, 0x050C013FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 207 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", One)
-          }
-        })
-      }
-
-      Device (BP02) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x02)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508020000, 0x0508023FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C020000, 0x050C023FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 209 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x02)
-          }
-        })
-      }
-
-      Device (BP03) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x03)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508030000, 0x0508033FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C030000, 0x050C033FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 211 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x03)
-          }
-        })
-      }
-
-      Device (BP04) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x04)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508040000, 0x0508043FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C040000, 0x050C043FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 213 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x04)
-          }
-        })
-      }
-
-      Device (BP05) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x05)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508050000, 0x0508053FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C050000, 0x050C053FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 215 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x05)
-          }
-        })
-      }
-
-      Device (BP06) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x06)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508060000, 0x0508063FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C060000, 0x050C063FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 217 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x06)
-          }
-        })
-      }
-
-      Device (BP07) {
-        Name (_HID, "PRP0001")
-        Name (_UID, 0x07)
-        Name (_CCA, One)
-        MONO_STA_PRESENT
-
-        Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508070000, 0x0508073FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C070000, 0x050C073FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 219 }
-        })
-
-        Method (_CRS, 0, Serialized) {
-          Return (RBUF)
-        }
-
-        Name (_DSD, Package () {
-          ToUUID (MONO_ACPI_DSD_UUID), Package () {
-            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x07)
+            MONO_PROP_U32 ("cell-index", 0x09)
           }
         })
       }
@@ -1833,16 +1732,16 @@
         })
       }
 
-      Device (BP09) {
+      Device (BP07) {
         Name (_HID, "PRP0001")
-        Name (_UID, 0x09)
+        Name (_UID, 0x07)
         Name (_CCA, One)
         MONO_STA_PRESENT
 
         Name (RBUF, ResourceTemplate () {
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508090000, 0x0508093FFF, 0, 0x00004000)
-          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C090000, 0x050C093FFF, 0, 0x00004000)
-          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 223 }
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508070000, 0x0508073FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C070000, 0x050C073FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 219 }
         })
 
         Method (_CRS, 0, Serialized) {
@@ -1852,7 +1751,175 @@
         Name (_DSD, Package () {
           ToUUID (MONO_ACPI_DSD_UUID), Package () {
             MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
-            MONO_PROP_U32 ("cell-index", 0x09)
+            MONO_PROP_U32 ("cell-index", 0x07)
+          }
+        })
+      }
+
+      Device (BP06) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x06)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508060000, 0x0508063FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C060000, 0x050C063FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 217 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x06)
+          }
+        })
+      }
+
+      Device (BP05) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x05)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508050000, 0x0508053FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C050000, 0x050C053FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 215 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x05)
+          }
+        })
+      }
+
+      Device (BP04) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x04)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508040000, 0x0508043FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C040000, 0x050C043FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 213 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x04)
+          }
+        })
+      }
+
+      Device (BP03) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x03)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508030000, 0x0508033FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C030000, 0x050C033FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 211 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x03)
+          }
+        })
+      }
+
+      Device (BP02) {
+        Name (_HID, "PRP0001")
+        Name (_UID, 0x02)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508020000, 0x0508023FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C020000, 0x050C023FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 209 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", 0x02)
+          }
+        })
+      }
+
+      Device (BP01) {
+        Name (_HID, "PRP0001")
+        Name (_UID, One)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508010000, 0x0508013FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C010000, 0x050C013FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 207 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", One)
+          }
+        })
+      }
+
+      Device (BP00) {
+        Name (_HID, "PRP0001")
+        Name (_UID, Zero)
+        Name (_CCA, One)
+        MONO_STA_PRESENT
+
+        Name (RBUF, ResourceTemplate () {
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x0508000000, 0x0508003FFF, 0, 0x00004000)
+          QWordMemory (ResourceConsumer, PosDecode, MinFixed, MaxFixed, NonCacheable, ReadWrite, 0, 0x050C000000, 0x050C003FFF, 0, 0x00004000)
+          Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { 205 }
+        })
+
+        Method (_CRS, 0, Serialized) {
+          Return (RBUF)
+        }
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_ACPI_DSD_UUID), Package () {
+            MONO_PROP_COMPAT2 ("beta_fsl,bman-portal-2.1.3", "beta_fsl,bman-portal"),
+            MONO_PROP_U32 ("cell-index", Zero)
           }
         })
       }

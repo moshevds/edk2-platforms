@@ -33,6 +33,36 @@ typedef struct _MMIO_OPERATIONS {
   UINT64 (*AndThenOr64) (UINTN Address, UINT64 AndData, UINT64 OrData);
 } MMIO_OPERATIONS;
 
+UINT32
+SwapMmioRead32 (
+  IN  UINTN  Address
+  );
+
+UINT32
+SwapMmioWrite32 (
+  IN  UINTN   Address,
+  IN  UINT32  Value
+  );
+
+UINT32
+SwapMmioOr32 (
+  IN  UINTN   Address,
+  IN  UINT32  OrData
+  );
+
+UINT32
+SwapMmioAnd32 (
+  IN  UINTN   Address,
+  IN  UINT32  AndData
+  );
+
+UINT32
+SwapMmioAndThenOr32 (
+  IN  UINTN   Address,
+  IN  UINT32  AndData,
+  IN  UINT32  OrData
+  );
+
 /**
   Function to return pointer to Mmio operations.
 

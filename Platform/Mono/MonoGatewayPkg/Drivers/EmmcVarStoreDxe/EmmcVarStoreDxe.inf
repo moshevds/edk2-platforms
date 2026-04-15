@@ -1,0 +1,64 @@
+## @file
+#
+#  Raw eMMC-backed variable store for Mono Gateway.
+#
+#  Copyright 2026 Mono Technologies Inc.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = EmmcVarStoreDxe
+  FILE_GUID                      = c6676fc6-4d2b-47aa-b5e7-f4c344347f67
+  MODULE_TYPE                    = DXE_RUNTIME_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = EmmcVarStoreInitialize
+
+[Sources]
+  EmmcVarStoreDxe.c
+
+[Packages]
+  ArmPkg/ArmPkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  MemoryAllocationLib
+  PcdLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiRuntimeLib
+
+[Protocols]
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathProtocolGuid
+  gEfiFirmwareVolumeBlockProtocolGuid
+  gEfiResetNotificationProtocolGuid
+
+[Guids]
+  gEdkiiNvVarStoreFormattedGuid
+  gEfiEventReadyToBootGuid
+  gEfiEventVirtualAddressChangeGuid
+
+[FixedPcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize
+  gMonoGatewayTokenSpaceGuid.PcdNvStorageEmmcOffset
+  gMonoGatewayTokenSpaceGuid.PcdNvStorageEmmcSize
+
+[Pcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64
+
+[Depex]
+  TRUE

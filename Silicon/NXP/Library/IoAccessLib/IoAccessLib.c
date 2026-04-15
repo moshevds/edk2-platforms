@@ -39,7 +39,6 @@ SwapMmioRead16 (
   @return The value read.
 
 **/
-STATIC
 UINT32
 EFIAPI
 SwapMmioRead32 (
@@ -92,7 +91,6 @@ SwapMmioWrite16 (
   @param  Value   The value to write to the MMIO register.
 
 **/
-STATIC
 UINT32
 EFIAPI
 SwapMmioWrite32 (
@@ -156,7 +154,6 @@ SwapMmioAndThenOr16 (
   @return The value written back to the MMIO register.
 
 **/
-STATIC
 UINT32
 EFIAPI
 SwapMmioAndThenOr32 (
@@ -225,7 +222,6 @@ SwapMmioOr16 (
   @return The value written back to the MMIO register.
 
 **/
-STATIC
 UINT32
 EFIAPI
 SwapMmioOr32 (
@@ -285,7 +281,6 @@ SwapMmioAnd16 (
   @return The value written back to the MMIO register.
 
 **/
-STATIC
 UINT32
 EFIAPI
 SwapMmioAnd32 (

@@ -36,6 +36,38 @@
 #define USB0_IT           92  /* DT SPI 60 -> GIC hwirq 92 (SPI + 32) */
 #define USB_LEN           0x10000
 
+#define DSPI0_BASE        0x02100000
+#define DSPI0_IT          96  /* DT SPI 64 -> GIC hwirq 96 (SPI + 32) */
+#define DSPI_LEN          0x10000
+
+#define I2C0_BASE         0x02180000
+#define I2C0_IT           88  /* DT SPI 56 -> GIC hwirq 88 (SPI + 32) */
+#define I2C1_BASE         0x02190000
+#define I2C1_IT           89  /* DT SPI 57 -> GIC hwirq 89 (SPI + 32) */
+#define I2C2_BASE         0x021A0000
+#define I2C2_IT           90  /* DT SPI 58 -> GIC hwirq 90 (SPI + 32) */
+#define I2C3_BASE         0x021B0000
+#define I2C3_IT           91  /* DT SPI 59 -> GIC hwirq 91 (SPI + 32) */
+#define I2C_LEN           0x10000
+
+#define QSPI0_BASE        0x01550000
+#define QSPI0_MEM_BASE    0x40000000
+#define QSPI0_IT          131 /* DT SPI 99 -> GIC hwirq 131 (SPI + 32) */
+#define QSPI_LEN          0x10000
+#define QSPI_MEM_LEN      0x10000000
+
+#define ESDHC0_BASE       0x01560000
+#define ESDHC0_IT         94  /* DT SPI 62 -> GIC hwirq 94 (SPI + 32) */
+#define ESDHC_LEN         0x10000
+
+#define FTMRTC0_BASE      0x029D0000
+#define FTMRTC0_IT        118 /* DT SPI 86 -> GIC hwirq 118 (SPI + 32) */
+#define FTMRTC_LEN        0x10000
+
+#define WDOG0_BASE        0x02AD0000
+#define WDOG0_IT          115 /* DT SPI 83 -> GIC hwirq 115 (SPI + 32) */
+#define WDOG_LEN          0x10000
+
 #define TIMER_BASE_ADDRESS       MAX_UINT64
 #define TIMER_READ_BASE_ADDRESS  MAX_UINT64
 #define TIMER_SEC_IT             29

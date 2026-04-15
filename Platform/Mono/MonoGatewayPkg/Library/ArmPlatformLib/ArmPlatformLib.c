@@ -64,6 +64,9 @@ ARM_CORE_INFO mLS1046aMpCoreInfoTable[] = {
 #define MONO_GATEWAY_DCSR_DCFG_ADDRESS           0x20140000
 #define MONO_GATEWAY_ERRATA_A008127_TRIGGER      0x015701A8
 #define MONO_GATEWAY_RCW_SRC_MASK                0xFF800000
+#define MONO_GATEWAY_GPIO_2R_ENABLE              6U
+#define MONO_GATEWAY_GPIO_3R_ENABLE              2U
+#define MONO_GATEWAY_GPIO_UART_MUX               26U
 
 STATIC
 VOID
@@ -122,6 +125,27 @@ ApplyMonoGatewayBoardMuxing (
                 (SCFG_USBPWRFAULT_INACTIVE << SCFG_USBPWRFAULT_USB2_SHIFT) |
                 (SCFG_USBPWRFAULT_INACTIVE << SCFG_USBPWRFAULT_USB1_SHIFT);
   ScfgWrite32 ((UINTN)&Scfg->UsbPwrFaultSelCr, UsbPwrFault);
+}
+
+STATIC
+VOID
+ApplyMonoGatewayBoardGpioDefaults (
+  VOID
+  )
+{
+  //
+  // Mirror the Linux DTS gpio-hog defaults using raw GPIO levels:
+  // - "2r-enable" is active-low and should be asserted
+  // - "3r-enable" is active-low and should be deasserted
+  // - "uart-mux" selects the 2R path when driven high
+  //
+  GpioSetData (GPIO2, MONO_GATEWAY_GPIO_2R_ENABLE, LOW);
+  GpioSetData (GPIO2, MONO_GATEWAY_GPIO_3R_ENABLE, HIGH);
+  GpioSetData (GPIO2, MONO_GATEWAY_GPIO_UART_MUX, HIGH);
+
+  GpioSetDirection (GPIO2, MONO_GATEWAY_GPIO_2R_ENABLE, OUTPUT);
+  GpioSetDirection (GPIO2, MONO_GATEWAY_GPIO_3R_ENABLE, OUTPUT);
+  GpioSetDirection (GPIO2, MONO_GATEWAY_GPIO_UART_MUX, OUTPUT);
 }
 
 /**
@@ -199,13 +223,15 @@ ArmPlatformInitialize (
   )
 {
   //
-  // Early Mono bring-up stays minimal: initialize the SoC and defer
-  // board-specific GPIO, I2C-mux, and storage sequencing until the
-  // corresponding platform DXE pieces exist.
+  // Early Mono bring-up still stays intentionally narrow: initialize the SoC,
+  // apply the board muxing that affects shared pin ownership, and drive the
+  // Linux-assumed GPIO defaults. Broader board-specific I2C-mux and storage
+  // sequencing is still deferred until the corresponding DXE pieces exist.
   //
   ApplyMonoGatewayI2c2EmmcBootErratum ();
   SocInit ();
   ApplyMonoGatewayBoardMuxing ();
+  ApplyMonoGatewayBoardGpioDefaults ();
 
   return EFI_SUCCESS;
 }

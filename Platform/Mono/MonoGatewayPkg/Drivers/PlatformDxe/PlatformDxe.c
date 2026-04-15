@@ -17,8 +17,10 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <IndustryStandard/ArmStdSmc.h>
+#include <Pi/PiI2c.h>
 #include <Soc.h>
 
+#include <Protocol/I2cMaster.h>
 #include <Protocol/NonDiscoverableDevice.h>
 
 typedef struct {
@@ -36,6 +38,16 @@ typedef struct {
   UINT8 EndDesc;
 } CAAM_DESCRIPTOR_SET;
 
+typedef struct {
+  UINTN              OperationCount;
+  EFI_I2C_OPERATION  Operation[1];
+} I2C_REQUEST_PACKET_1_OP;
+
+typedef struct {
+  UINTN              OperationCount;
+  EFI_I2C_OPERATION  Operation[2];
+} I2C_REQUEST_PACKET_2_OP;
+
 //
 // Upstream LS1046A headers do not currently publish the I2C controller window
 // macros that LS1043A exposes. Mono follows the standard LS1046A layout from
@@ -44,6 +56,8 @@ typedef struct {
 #define MONO_GATEWAY_I2C0_PHYS_ADDRESS    0x2180000
 #define MONO_GATEWAY_I2C_SIZE             0x10000
 #define MONO_GATEWAY_I2C_NUM_CONTROLLERS  4
+#define MONO_GATEWAY_I2C_MUX_ADDRESS      0x70
+#define MONO_GATEWAY_PCA9545_CTRL_REG     0x00
 
 #define MONO_GATEWAY_FMAN_PHYS_ADDRESS        0x1A00000
 #define MONO_GATEWAY_FMAN_SIZE                0x100000
@@ -81,6 +95,15 @@ STATIC FMAN_DESCRIPTOR_SET      mFmanDesc[MONO_GATEWAY_FMAN_NUM_CONTROLLERS];
 #if MONO_CAAM_ENABLE
 STATIC CAAM_DESCRIPTOR_SET      mCaamDesc;
 #endif
+STATIC EFI_EVENT                mMonoI2c0MuxNotifyEvent;
+STATIC VOID                     *mMonoI2c0MuxNotifyRegistration;
+STATIC BOOLEAN                  mMonoI2c0MuxResetDone;
+
+#define PLATFORM_INFO(_Fmt, ...) \
+  DEBUG ((DEBUG_ERROR, "PlatformDxe: " _Fmt "\n", ##__VA_ARGS__))
+
+#define PLATFORM_WARN(_Fmt, ...) \
+  DEBUG ((DEBUG_ERROR, "PlatformDxe: " _Fmt "\n", ##__VA_ARGS__))
 
 STATIC
 VOID
@@ -187,6 +210,335 @@ PopulateI2cInformation (
     mI2cDesc[Index].StartDesc.AddrLen = MONO_GATEWAY_I2C_SIZE;
     mI2cDesc[Index].EndDesc = ACPI_END_TAG_DESCRIPTOR;
   }
+}
+
+STATIC
+EFI_STATUS
+ConnectI2cControllers (
+  VOID
+  )
+{
+  NON_DISCOVERABLE_DEVICE  *Device;
+  EFI_HANDLE               *Handles;
+  EFI_STATUS               Status;
+  UINTN                    Count;
+  UINTN                    Index;
+
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                  NULL,
+                  &Count,
+                  &Handles
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  for (Index = 0; Index < Count; Index++) {
+    Status = gBS->OpenProtocol (
+                    Handles[Index],
+                    &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                    (VOID **)&Device,
+                    gImageHandle,
+                    NULL,
+                    EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+                    );
+    if (EFI_ERROR (Status)) {
+      continue;
+    }
+
+    if (CompareGuid (Device->Type, &gNxpNonDiscoverableI2cMasterGuid)) {
+      gBS->ConnectController (Handles[Index], NULL, NULL, TRUE);
+    }
+  }
+
+  FreePool (Handles);
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+GetI2cMasterForBase (
+  IN  EFI_PHYSICAL_ADDRESS     Base,
+  OUT EFI_I2C_MASTER_PROTOCOL  **I2cMaster
+  )
+{
+  NON_DISCOVERABLE_DEVICE  *Device;
+  EFI_HANDLE               *Handles;
+  EFI_STATUS               Status;
+  UINTN                    Count;
+  UINTN                    Index;
+  UINTN                    BusClockHertz;
+
+  if (I2cMaster == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  *I2cMaster = NULL;
+
+  Status = ConnectI2cControllers ();
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEfiI2cMasterProtocolGuid,
+                  NULL,
+                  &Count,
+                  &Handles
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  for (Index = 0; Index < Count; Index++) {
+    Status = gBS->OpenProtocol (
+                    Handles[Index],
+                    &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                    (VOID **)&Device,
+                    gImageHandle,
+                    NULL,
+                    EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+                    );
+    if (EFI_ERROR (Status)) {
+      continue;
+    }
+
+    if (Device->Resources[0].AddrRangeMin != Base) {
+      continue;
+    }
+
+    Status = gBS->OpenProtocol (
+                    Handles[Index],
+                    &gEfiI2cMasterProtocolGuid,
+                    (VOID **)I2cMaster,
+                    gImageHandle,
+                    NULL,
+                    EFI_OPEN_PROTOCOL_BY_HANDLE_PROTOCOL
+                    );
+    if (EFI_ERROR (Status)) {
+      continue;
+    }
+
+    BusClockHertz = 100000;
+    Status = (*I2cMaster)->SetBusFrequency (*I2cMaster, &BusClockHertz);
+    if (!EFI_ERROR (Status)) {
+      break;
+    }
+
+    *I2cMaster = NULL;
+  }
+
+  FreePool (Handles);
+  return (*I2cMaster == NULL) ? EFI_NOT_FOUND : EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+I2cWrite (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN UINTN                    SlaveAddress,
+  IN VOID                     *Buffer,
+  IN UINTN                    Length
+  )
+{
+  I2C_REQUEST_PACKET_1_OP  Packet;
+
+  Packet.OperationCount = 1;
+  Packet.Operation[0].Flags = 0;
+  Packet.Operation[0].LengthInBytes = Length;
+  Packet.Operation[0].Buffer = Buffer;
+
+  return I2cMaster->StartRequest (
+                      I2cMaster,
+                      SlaveAddress,
+                      (EFI_I2C_REQUEST_PACKET *)&Packet,
+                      NULL,
+                      NULL
+                      );
+}
+
+STATIC
+EFI_STATUS
+I2cWriteThenRead (
+  IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN  UINTN                    SlaveAddress,
+  IN  VOID                     *PrefixBuffer,
+  IN  UINTN                    PrefixLength,
+  OUT VOID                     *ReadBuffer,
+  IN  UINTN                    ReadLength
+  )
+{
+  I2C_REQUEST_PACKET_2_OP  Packet;
+
+  Packet.OperationCount = 2;
+  Packet.Operation[0].Flags = 0;
+  Packet.Operation[0].LengthInBytes = PrefixLength;
+  Packet.Operation[0].Buffer = PrefixBuffer;
+  Packet.Operation[1].Flags = I2C_FLAG_READ;
+  Packet.Operation[1].LengthInBytes = ReadLength;
+  Packet.Operation[1].Buffer = ReadBuffer;
+
+  return I2cMaster->StartRequest (
+                      I2cMaster,
+                      SlaveAddress,
+                      (EFI_I2C_REQUEST_PACKET *)&Packet,
+                      NULL,
+                      NULL
+                      );
+}
+
+STATIC
+EFI_STATUS
+I2cRegRead8 (
+  IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN  UINTN                    SlaveAddress,
+  IN  UINT8                    Register,
+  OUT UINT8                    *Value
+  )
+{
+  return I2cWriteThenRead (
+           I2cMaster,
+           SlaveAddress,
+           &Register,
+           sizeof (Register),
+           Value,
+           sizeof (*Value)
+           );
+}
+
+STATIC
+EFI_STATUS
+I2cRegWrite8 (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN UINTN                    SlaveAddress,
+  IN UINT8                    Register,
+  IN UINT8                    Value
+  )
+{
+  UINT8 Packet[2];
+
+  Packet[0] = Register;
+  Packet[1] = Value;
+  return I2cWrite (I2cMaster, SlaveAddress, Packet, sizeof (Packet));
+}
+
+STATIC
+EFI_STATUS
+ResetMonoI2c0Mux (
+  VOID
+  )
+{
+  EFI_I2C_MASTER_PROTOCOL  *I2cMaster;
+  EFI_STATUS               Status;
+  UINT8                    CtrlValue;
+
+  Status = GetI2cMasterForBase (MONO_GATEWAY_I2C0_PHYS_ADDRESS, &I2cMaster);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("could not get Mono i2c0 master for mux reset: %r", Status);
+    return Status;
+  }
+
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             MONO_GATEWAY_PCA9545_CTRL_REG,
+             0x00
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("failed to reset Mono i2c0 PCA9545 mux: %r", Status);
+    return Status;
+  }
+
+  Status = I2cRegRead8 (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             MONO_GATEWAY_PCA9545_CTRL_REG,
+             &CtrlValue
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("Mono i2c0 PCA9545 mux readback failed: %r", Status);
+  } else if ((CtrlValue & 0x0fU) != 0x00U) {
+    PLATFORM_WARN ("Mono i2c0 PCA9545 mux reset readback unexpected value 0x%02x", CtrlValue);
+  } else {
+    PLATFORM_INFO ("Mono i2c0 PCA9545 mux reset to idle");
+  }
+
+  mMonoI2c0MuxResetDone = TRUE;
+  return EFI_SUCCESS;
+}
+
+STATIC
+VOID
+EFIAPI
+MonoI2c0MuxNotify (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_STATUS  Status;
+
+  if (mMonoI2c0MuxResetDone) {
+    return;
+  }
+
+  Status = ResetMonoI2c0Mux ();
+  if (EFI_ERROR (Status)) {
+    return;
+  }
+
+  if (mMonoI2c0MuxNotifyEvent != NULL) {
+    gBS->CloseEvent (mMonoI2c0MuxNotifyEvent);
+    mMonoI2c0MuxNotifyEvent = NULL;
+    mMonoI2c0MuxNotifyRegistration = NULL;
+  }
+}
+
+STATIC
+EFI_STATUS
+RegisterMonoI2c0MuxNotify (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+
+  if (mMonoI2c0MuxResetDone) {
+    return EFI_SUCCESS;
+  }
+
+  if (mMonoI2c0MuxNotifyEvent != NULL) {
+    return EFI_ALREADY_STARTED;
+  }
+
+  Status = gBS->CreateEvent (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_CALLBACK,
+                  MonoI2c0MuxNotify,
+                  NULL,
+                  &mMonoI2c0MuxNotifyEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("failed to create Mono i2c0 mux notify event: %r", Status);
+    return Status;
+  }
+
+  Status = gBS->RegisterProtocolNotify (
+                  &gEfiI2cMasterProtocolGuid,
+                  mMonoI2c0MuxNotifyEvent,
+                  &mMonoI2c0MuxNotifyRegistration
+                  );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("failed to register Mono i2c0 mux protocol notify: %r", Status);
+    gBS->CloseEvent (mMonoI2c0MuxNotifyEvent);
+    mMonoI2c0MuxNotifyEvent = NULL;
+    return Status;
+  }
+
+  PLATFORM_INFO ("registered Mono i2c0 mux reset notify");
+  gBS->SignalEvent (mMonoI2c0MuxNotifyEvent);
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -302,6 +654,12 @@ PlatformDxeEntryPoint (
         return Status;
       }
     }
+  }
+
+  Status = RegisterMonoI2c0MuxNotify ();
+  ASSERT_EFI_ERROR (Status);
+  if (EFI_ERROR (Status) && (Status != EFI_ALREADY_STARTED)) {
+    return Status;
   }
 
   for (Index = 0; Index < ARRAY_SIZE (mFmanDesc); Index++) {

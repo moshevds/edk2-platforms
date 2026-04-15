@@ -1,0 +1,22 @@
+#  @FpgaLib.inf
+#
+#  Mono board clock/personality hooks for LS1046A firmware.
+#
+
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = FpgaLib
+  FILE_GUID                      = 0fdffcf2-58ec-4f11-8e50-b2550bf57732
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = FpgaLib
+
+[Sources.common]
+  FpgaLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[LibraryClasses]
+  DebugLib

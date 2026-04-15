@@ -6,6 +6,8 @@
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
+#include <Library/TimerLib.h>
+
 #include "FmanDxe.h"
 
 STATIC EFI_GUID  mFmanUcodeFileGuid = FMAN_UCODE_FILE_GUID;
@@ -16,12 +18,25 @@ STATIC UINTN     mFmanMuramAlloc;
 STATIC UINTN     mFmanMuramTop;
 STATIC BOOLEAN   mFmanMdioConfigured;
 STATIC UINTN     mFmanMdioBase;
+STATIC BOOLEAN   mMonoSfpMuxResetDone;
 
 #define FMAN_ERROR(_Fmt, ...) \
   DEBUG ((DEBUG_ERROR, "FmanDxe: " _Fmt "\n", ##__VA_ARGS__))
 
 #define FMAN_INFO(_Fmt, ...) \
-  DEBUG ((DEBUG_INFO, "FmanDxe: " _Fmt "\n", ##__VA_ARGS__))
+  DEBUG ((DEBUG_ERROR, "FmanDxe: " _Fmt "\n", ##__VA_ARGS__))
+
+#define FMAN_WARN(_Fmt, ...) \
+  DEBUG ((DEBUG_ERROR, "FmanDxe: " _Fmt "\n", ##__VA_ARGS__))
+
+#define FMAN_MDIO_PHYID1            2U
+#define FMAN_MDIO_PHYID2            3U
+#define FMAN_MDIO_BMCR              0U
+#define FMAN_MDIO_DEVAD_VEND1       0x1eU
+#define FMAN_MDIO_BMCR_RESET        0x8000U
+#define FMAN_MONO_GPY115C_PHY_ID    0x67c9df10U
+#define FMAN_MONO_GPY115C_LED_REG   0x1bU
+#define FMAN_MONO_GPY115C_LED_POL   0x0f00U
 
 STATIC
 FMAN_SFP_GPIO_CONFIG
@@ -377,6 +392,31 @@ FmanI2cWrite (
 
 STATIC
 EFI_STATUS
+FmanI2cRead (
+  IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN  UINTN                    SlaveAddress,
+  OUT VOID                     *Buffer,
+  IN  UINTN                    Length
+  )
+{
+  FMAN_I2C_REQUEST_PACKET_1_OP  Packet;
+
+  Packet.OperationCount = 1;
+  Packet.Operation[0].Flags = I2C_FLAG_READ;
+  Packet.Operation[0].LengthInBytes = Length;
+  Packet.Operation[0].Buffer = Buffer;
+
+  return I2cMaster->StartRequest (
+                      I2cMaster,
+                      SlaveAddress,
+                      (EFI_I2C_REQUEST_PACKET *)&Packet,
+                      NULL,
+                      NULL
+                      );
+}
+
+STATIC
+EFI_STATUS
 FmanI2cWriteThenRead (
   IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
   IN  UINTN                    SlaveAddress,
@@ -403,6 +443,56 @@ FmanI2cWriteThenRead (
                       NULL,
                       NULL
                       );
+}
+
+STATIC
+EFI_STATUS
+FmanResetMonoSfpMux (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  EFI_I2C_MASTER_PROTOCOL  *I2cMaster;
+  EFI_STATUS               Status;
+  UINT8                    CtrlValue;
+
+  if (mMonoSfpMuxResetDone) {
+    return EFI_SUCCESS;
+  }
+
+  Status = FmanGetI2cMasterForBase (FMAN_MONO_I2C1_BASE, &I2cMaster);
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u could not get Mono SFP mux I2C master: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  CtrlValue = 0x00;
+  Status = FmanI2cWrite (
+             I2cMaster,
+             FMAN_MONO_SFP_MUX_ADDRESS,
+             &CtrlValue,
+             sizeof (CtrlValue)
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u failed to reset Mono SFP mux: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  Status = FmanI2cRead (
+             I2cMaster,
+             FMAN_MONO_SFP_MUX_ADDRESS,
+             &CtrlValue,
+             sizeof (CtrlValue)
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u Mono SFP mux reset readback failed: %r", Private->PortId, Status);
+  } else if ((CtrlValue & 0x0fU) != 0x00U) {
+    FMAN_WARN ("port %u Mono SFP mux reset readback unexpected value 0x%02x", Private->PortId, CtrlValue);
+  } else {
+    FMAN_INFO ("port %u Mono SFP mux reset to idle", Private->PortId);
+  }
+
+  mMonoSfpMuxResetDone = TRUE;
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -929,6 +1019,142 @@ FmanExternalPhyLinkUp (
   }
 
   return TRUE;
+}
+
+STATIC
+EFI_STATUS
+FmanMonoGpy115cInit (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      Id1;
+  UINT16      Id2;
+  UINT32      PhyId;
+  BOOLEAN     ForceRecovery;
+
+  Status = FmanMdioReadAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_PHYID1,
+             &Id1
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN (
+      "port %u GPY115C id1 read failed on mdio=0x%Lx phy=%u: %r, applying Mono recovery sequence",
+      Private->PortId,
+      (UINT64)Private->PhyMdioBase,
+      Private->PhyPortAddress,
+      Status
+      );
+    ForceRecovery = TRUE;
+    PhyId = 0;
+  } else {
+    Status = FmanMdioReadAtBase (
+               Private,
+               Private->PhyMdioBase,
+               Private->PhyPortAddress,
+               FMAN_MDIO_DEVAD_NONE,
+               FMAN_MDIO_PHYID2,
+               &Id2
+               );
+    if (EFI_ERROR (Status)) {
+      FMAN_WARN (
+        "port %u GPY115C id2 read failed on mdio=0x%Lx phy=%u: %r, applying Mono recovery sequence",
+        Private->PortId,
+        (UINT64)Private->PhyMdioBase,
+        Private->PhyPortAddress,
+        Status
+        );
+      ForceRecovery = TRUE;
+      PhyId = 0;
+    } else {
+      PhyId = ((UINT32)Id1 << 16) | Id2;
+      ForceRecovery = (PhyId == 0);
+    }
+  }
+
+  if (!ForceRecovery && (PhyId != FMAN_MONO_GPY115C_PHY_ID)) {
+    FMAN_INFO (
+      "port %u skipping Mono GPY115C init for phy id 0x%08x",
+      Private->PortId,
+      PhyId
+      );
+    return EFI_SUCCESS;
+  }
+
+  if (ForceRecovery) {
+    FMAN_WARN (
+      "port %u external PHY returned zero/invalid id reads; firmware is correcting GPY115C state on phy=%u",
+      Private->PortId,
+      Private->PhyPortAddress
+      );
+  } else {
+    FMAN_INFO (
+      "port %u applying Mono GPY115C init to phy=%u id=0x%08x",
+      Private->PortId,
+      Private->PhyPortAddress,
+      PhyId
+      );
+  }
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_BMCR,
+             FMAN_MDIO_BMCR_RESET
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_ERROR ("port %u GPY115C reset failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  MicroSecondDelay (10000);
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MONO_GPY115C_LED_REG,
+             FMAN_MONO_GPY115C_LED_POL
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_ERROR ("port %u GPY115C LED polarity setup failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_VEND1,
+             0x01,
+             0x2040
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_ERROR ("port %u GPY115C vendor register 0x01 setup failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_VEND1,
+             0x02,
+             0x0fe0
+             );
+  if (EFI_ERROR (Status)) {
+    FMAN_ERROR ("port %u GPY115C vendor register 0x02 setup failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -1595,6 +1821,11 @@ FmanEnsureCommonInit (
   FmanInitDma (Private->FmanBase);
   FMAN_INFO ("port %u common init: DMA ready", Private->PortId);
 
+  Status = FmanResetMonoSfpMux (Private);
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u common init: SFP mux reset did not complete cleanly: %r", Private->PortId, Status);
+  }
+
   Status = FmanInitBmi (Private->FmanBase);
   if (EFI_ERROR (Status)) {
     FMAN_ERROR ("port %u BMI init failed: %r", Private->PortId, Status);
@@ -1931,6 +2162,12 @@ FmanHwInitialize (
     Status = FmanSetupSgmiiInternalPhy (Private);
     if (EFI_ERROR (Status)) {
       FMAN_ERROR ("port %u SGMII PCS setup failed: %r", Private->PortId, Status);
+      return Status;
+    }
+    FMAN_INFO ("port %u hardware init: external GPY115C setup", Private->PortId);
+    Status = FmanMonoGpy115cInit (Private);
+    if (EFI_ERROR (Status)) {
+      FMAN_ERROR ("port %u external GPY115C setup failed: %r", Private->PortId, Status);
       return Status;
     }
     FMAN_INFO ("port %u hardware init: 1G MEMAC config", Private->PortId);

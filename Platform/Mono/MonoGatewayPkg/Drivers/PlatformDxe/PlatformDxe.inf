@@ -47,6 +47,7 @@
 
 [Protocols]
   gEdkiiNonDiscoverableDeviceProtocolGuid        ## PRODUCES
+  gEfiI2cMasterProtocolGuid                      ## CONSUMES
   gNxpCaamReadyProtocolGuid                      ## PRODUCES
   gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## PRODUCES
 
