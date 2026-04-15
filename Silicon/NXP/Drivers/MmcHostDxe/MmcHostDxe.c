@@ -391,7 +391,6 @@ MmcNotifyState (
     ASSERT (0);
     break;
   case MmcHwInitializationState:
-    DEBUG ((DEBUG_ERROR, "MmcNotifyState(MmcHwInitializationState)\n"));
     Status = MmcInitialize ((VOID *)Instance->DeviceBaseAddress);
     if (Status != EFI_SUCCESS) {
       DEBUG ((DEBUG_ERROR,"Failed to init MMC\n"));
@@ -407,7 +406,6 @@ MmcNotifyState (
   case MmcReceiveDataState:
   case MmcProgrammingState:
   case MmcDisconnectState:
-    DEBUG ((DEBUG_ERROR, "MmcNotifyState(%d)\n", State));
     break;
   default:
     ASSERT (0);

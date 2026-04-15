@@ -1,0 +1,41 @@
+[Defines]
+  INF_VERSION                    = 0x0001001A
+  BASE_NAME                      = PeiVariableFlashInfoLib
+  FILE_GUID                      = 5b1f4db5-f574-4540-a8fe-3a1a8b0921f2
+  MODULE_TYPE                    = BASE
+  VERSION_STRING                 = 1.0
+  LIBRARY_CLASS                  = VariableFlashInfoLib
+  CONSTRUCTOR                    = PeiVariableFlashInfoLibConstructor
+
+[Sources]
+  PeiVariableFlashInfoLib.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  HobLib
+  MemoryAllocationLib
+  PcdLib
+  SafeIntLib
+
+[Guids]
+  gVariableFlashInfoHobGuid
+  gEfiSystemNvDataFvGuid
+  gEfiVariableGuid
+  gEdkiiWorkingBlockSignatureGuid
+
+[Pcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64

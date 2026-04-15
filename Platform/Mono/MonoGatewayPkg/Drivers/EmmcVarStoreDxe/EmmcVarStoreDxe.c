@@ -16,6 +16,7 @@
 #include <Guid/EventGroup.h>
 #include <Guid/NvVarStoreFormatted.h>
 #include <Guid/SystemNvDataGuid.h>
+#include <Guid/VariableFormat.h>
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
@@ -32,6 +33,15 @@
 #include <Protocol/ResetNotification.h>
 
 #define EFI_FVB2_STATUS  (EFI_FVB2_READ_STATUS | EFI_FVB2_WRITE_STATUS | EFI_FVB2_LOCK_STATUS)
+#define MONO_VARSTORE_BLOCK_SIZE  0x1000
+#define MONO_FTW_ERASED_BYTE      0xFF
+
+typedef struct {
+  UINT64                      FvLength;
+  EFI_FIRMWARE_VOLUME_HEADER  FvbInfo;
+  EFI_FV_BLOCK_MAP_ENTRY      End[1];
+  VARIABLE_STORE_HEADER       VariableStoreHeader;
+} MONO_VARSTORE_MEDIA_INFO;
 
 typedef struct {
   UINT64                      FvLength;
@@ -45,6 +55,7 @@ typedef struct {
     EFI_FIRMWARE_VOLUME_HEADER    *VolumeHeader;
   };
   UINTN                           FvLength;
+  UINTN                           VariableFvLength;
   UINTN                           NumOfBlocks;
   BOOLEAN                         Dirty;
   BOOLEAN                         VirtualMode;
@@ -128,16 +139,12 @@ STATIC EFI_FW_VOL_BLOCK_DEVICE mFvbDeviceTemplate = {
   }
 };
 
-STATIC EFI_FVB_MEDIA_INFO mPlatformFvbMediaInfo = {
-  FixedPcdGet32 (PcdFlashNvStorageVariableSize) +
-  FixedPcdGet32 (PcdFlashNvStorageFtwWorkingSize) +
-  FixedPcdGet32 (PcdFlashNvStorageFtwSpareSize),
+STATIC MONO_VARSTORE_MEDIA_INFO mPlatformFvbMediaInfo = {
+  FixedPcdGet32 (PcdFlashNvStorageVariableSize),
   {
     { 0 },
     EFI_SYSTEM_NV_DATA_FV_GUID,
-    FixedPcdGet32 (PcdFlashNvStorageVariableSize) +
-    FixedPcdGet32 (PcdFlashNvStorageFtwWorkingSize) +
-    FixedPcdGet32 (PcdFlashNvStorageFtwSpareSize),
+    FixedPcdGet32 (PcdFlashNvStorageVariableSize),
     EFI_FVH_SIGNATURE,
     EFI_FVB2_MEMORY_MAPPED |
     EFI_FVB2_READ_ENABLED_CAP |
@@ -153,15 +160,52 @@ STATIC EFI_FVB_MEDIA_INFO mPlatformFvbMediaInfo = {
     2,
     {
       {
-        (FixedPcdGet32 (PcdFlashNvStorageVariableSize) +
-         FixedPcdGet32 (PcdFlashNvStorageFtwWorkingSize) +
-         FixedPcdGet32 (PcdFlashNvStorageFtwSpareSize)) / 0x1000,
-        0x1000
+        FixedPcdGet32 (PcdFlashNvStorageVariableSize) / MONO_VARSTORE_BLOCK_SIZE,
+        MONO_VARSTORE_BLOCK_SIZE
       }
     }
   },
-  { { 0, 0 } }
+  { { 0, 0 } },
+  {
+    EFI_VARIABLE_GUID,
+    FixedPcdGet32 (PcdFlashNvStorageVariableSize) -
+    (sizeof (EFI_FIRMWARE_VOLUME_HEADER) + sizeof (EFI_FV_BLOCK_MAP_ENTRY)),
+    VARIABLE_STORE_FORMATTED,
+    VARIABLE_STORE_HEALTHY,
+    0,
+    0
+  }
 };
+
+STATIC CONST EFI_GUID mVariableStoreGuid = EFI_VARIABLE_GUID;
+STATIC CONST EFI_GUID mWorkingBlockGuid = EDKII_WORKING_BLOCK_SIGNATURE_GUID;
+
+STATIC
+EFI_STATUS
+InitializeWorkingBlockHeader (
+  OUT EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER  *WorkingBlockHeader,
+  IN  UINTN                                    WorkingBlockLength
+  )
+{
+  EFI_STATUS  Status;
+
+  SetMem (WorkingBlockHeader, sizeof (*WorkingBlockHeader), MONO_FTW_ERASED_BYTE);
+  CopyMem (&WorkingBlockHeader->Signature, &mWorkingBlockGuid, sizeof (WorkingBlockHeader->Signature));
+  WorkingBlockHeader->WriteQueueSize = WorkingBlockLength - sizeof (*WorkingBlockHeader);
+
+  Status = gBS->CalculateCrc32 (
+                  WorkingBlockHeader,
+                  sizeof (*WorkingBlockHeader),
+                  &WorkingBlockHeader->Crc
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  WorkingBlockHeader->WorkingBlockValid   = FTW_VALID_STATE;
+  WorkingBlockHeader->WorkingBlockInvalid = FTW_INVALID_STATE;
+  return EFI_SUCCESS;
+}
 
 STATIC
 BOOLEAN
@@ -259,19 +303,15 @@ MonoFindRawEmmcBlockIo (
     }
 
     DevicePath = DevicePathFromHandle (Handles[Index]);
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: candidate BlockIo handle=%p\n", Handles[Index]));
     if (DevicePath != NULL) {
       MonoDebugDumpDevicePath (DevicePath);
     }
     if ((DevicePath != NULL) && MonoPathContainsEmmcNode (DevicePath)) {
       *Handle  = Handles[Index];
       *BlockIo = Candidate;
-      DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: selected raw eMMC BlockIo handle=%p\n", Handles[Index]));
       Status   = EFI_SUCCESS;
       goto Done;
     }
-
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: candidate handle=%p missing MSG_EMMC_DP node\n", Handles[Index]));
   }
 
   Status = EFI_NOT_FOUND;
@@ -288,10 +328,17 @@ MonoRawEmmcTransfer (
   )
 {
   EFI_STATUS  Status;
+  EFI_STATUS  FlushStatus;
   UINTN       Length;
   UINTN       BlockSize;
   EFI_LBA     Lba;
   UINT64      Offset;
+  UINTN       BlockCount;
+  UINTN       BlocksPerTransfer;
+  UINTN       TransferBlocks;
+  UINTN       TransferSize;
+  UINTN       Index;
+  UINT8       *Buffer;
 
   if ((mFvInstance == NULL) || (mFvInstance->BlockIo == NULL)) {
     return EFI_NOT_READY;
@@ -307,29 +354,61 @@ MonoRawEmmcTransfer (
   }
 
   Lba = (EFI_LBA)(Offset / BlockSize);
+  BlockCount = Length / BlockSize;
+  BlocksPerTransfer = MONO_VARSTORE_BLOCK_SIZE / BlockSize;
+  if (BlocksPerTransfer == 0) {
+    BlocksPerTransfer = 1;
+  }
+  Buffer     = (UINT8 *)(UINTN)mFvInstance->FvBase;
+
+  for (Index = 0; Index < BlockCount; Index += TransferBlocks) {
+    TransferBlocks = BlockCount - Index;
+    if (TransferBlocks > BlocksPerTransfer) {
+      TransferBlocks = BlocksPerTransfer;
+    }
+
+    TransferSize = TransferBlocks * BlockSize;
+
+    if (Write) {
+      Status = mFvInstance->BlockIo->WriteBlocks (
+                                        mFvInstance->BlockIo,
+                                        mFvInstance->BlockIo->Media->MediaId,
+                                        Lba + Index,
+                                        TransferSize,
+                                        Buffer + (Index * BlockSize)
+                                        );
+    } else {
+      Status = mFvInstance->BlockIo->ReadBlocks (
+                                        mFvInstance->BlockIo,
+                                        mFvInstance->BlockIo->Media->MediaId,
+                                        Lba + Index,
+                                        TransferSize,
+                                        Buffer + (Index * BlockSize)
+                                        );
+    }
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_ERROR,
+        "EmmcVarStoreDxe: %aBlocks failed at LBA=%Lu size=0x%x: %r\n",
+        Write ? "Write" : "Read",
+        Lba + Index,
+        (UINT32)TransferSize,
+        Status
+        ));
+      return Status;
+    }
+  }
+
   if (Write) {
-    Status = mFvInstance->BlockIo->WriteBlocks (
-                                      mFvInstance->BlockIo,
-                                      mFvInstance->BlockIo->Media->MediaId,
-                                      Lba,
-                                      Length,
-                                      (VOID *)(UINTN)mFvInstance->FvBase
-                                      );
-  } else {
-    Status = mFvInstance->BlockIo->ReadBlocks (
-                                      mFvInstance->BlockIo,
-                                      mFvInstance->BlockIo->Media->MediaId,
-                                      Lba,
-                                      Length,
-                                      (VOID *)(UINTN)mFvInstance->FvBase
-                                      );
+    FlushStatus = mFvInstance->BlockIo->FlushBlocks (mFvInstance->BlockIo);
+    if (EFI_ERROR (FlushStatus)) {
+      DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: FlushBlocks failed: %r\n", FlushStatus));
+      return FlushStatus;
+    }
   }
 
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: %aBlocks failed: %r\n", Write ? "Write" : "Read", Status));
-  }
-
-  return Status;
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -345,14 +424,12 @@ MonoFlushVarStore (
   }
 
   if (mFvInstance->VirtualMode) {
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: skipping flush after virtual address change\n"));
     return;
   }
 
   Status = MonoRawEmmcTransfer (TRUE);
   if (!EFI_ERROR (Status)) {
     mFvInstance->Dirty = FALSE;
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: variable store flushed to raw eMMC slot\n"));
   }
 }
 
@@ -446,6 +523,24 @@ ValidateFvHeader (
 }
 
 STATIC
+BOOLEAN
+ValidateVariableStoreHeader (
+  IN EFI_FW_VOL_INSTANCE  *FvInstance
+  )
+{
+  VARIABLE_STORE_HEADER  *VariableStore;
+  UINTN                  VariableStoreLength;
+
+  VariableStore = (VARIABLE_STORE_HEADER *)((UINTN)FvInstance->VolumeHeader + FvInstance->VolumeHeader->HeaderLength);
+  VariableStoreLength = FvInstance->VariableFvLength - FvInstance->VolumeHeader->HeaderLength;
+
+  return CompareGuid (&VariableStore->Signature, &mVariableStoreGuid) &&
+         (VariableStore->Size == VariableStoreLength) &&
+         (VariableStore->Format == VARIABLE_STORE_FORMATTED) &&
+         (VariableStore->State == VARIABLE_STORE_HEALTHY);
+}
+
+STATIC
 EFI_STATUS
 VarStoreWrite (
   IN     UINTN   Address,
@@ -479,47 +574,23 @@ FvbGetLbaAddress (
   OUT UINTN    *NumOfBlocks
   )
 {
-  UINT32                  NumBlocks;
-  UINT32                  BlockLength;
-  UINTN                   Offset;
-  EFI_LBA                 StartLba;
-  EFI_LBA                 NextLba;
-  EFI_FV_BLOCK_MAP_ENTRY  *BlockMap;
-
-  StartLba = 0;
-  Offset   = 0;
-  BlockMap = &(mFvInstance->VolumeHeader->BlockMap[0]);
-
-  while (TRUE) {
-    NumBlocks   = BlockMap->NumBlocks;
-    BlockLength = BlockMap->Length;
-
-    if ((NumBlocks == 0) || (BlockLength == 0)) {
-      return EFI_INVALID_PARAMETER;
-    }
-
-    NextLba = StartLba + NumBlocks;
-    if ((Lba >= StartLba) && (Lba < NextLba)) {
-      Offset += (UINTN)MultU64x32 ((Lba - StartLba), BlockLength);
-      if (LbaAddress != NULL) {
-        *LbaAddress = mFvInstance->FvBase + Offset;
-      }
-
-      if (LbaLength != NULL) {
-        *LbaLength = BlockLength;
-      }
-
-      if (NumOfBlocks != NULL) {
-        *NumOfBlocks = (UINTN)(NextLba - Lba);
-      }
-
-      return EFI_SUCCESS;
-    }
-
-    StartLba = NextLba;
-    Offset  += NumBlocks * BlockLength;
-    BlockMap++;
+  if (Lba >= mFvInstance->NumOfBlocks) {
+    return EFI_INVALID_PARAMETER;
   }
+
+  if (LbaAddress != NULL) {
+    *LbaAddress = mFvInstance->FvBase + ((UINTN)Lba * MONO_VARSTORE_BLOCK_SIZE);
+  }
+
+  if (LbaLength != NULL) {
+    *LbaLength = MONO_VARSTORE_BLOCK_SIZE;
+  }
+
+  if (NumOfBlocks != NULL) {
+    *NumOfBlocks = mFvInstance->NumOfBlocks - (UINTN)Lba;
+  }
+
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -843,16 +914,26 @@ InitializeFvFromEmmc (
   )
 {
   EFI_STATUS                    Status;
+  EFI_STATUS                    BackingStoreStatus;
   EFI_FIRMWARE_VOLUME_HEADER    *GoodFwVolHeader;
+  EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER WorkingBlockHeader;
   UINTN                         WriteLength;
 
-  Status = MonoRawEmmcTransfer (FALSE);
-  if (EFI_ERROR (Status)) {
-    return Status;
+  BackingStoreStatus = MonoRawEmmcTransfer (FALSE);
+  if (EFI_ERROR (BackingStoreStatus)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "EmmcVarStoreDxe: raw eMMC load failed, reinitializing in RAM: %r\n",
+      BackingStoreStatus
+      ));
   }
 
   Status = ValidateFvHeader (mFvInstance->VolumeHeader);
-  if (!EFI_ERROR (Status) && (mFvInstance->VolumeHeader->FvLength == mFvInstance->FvLength)) {
+  if (!EFI_ERROR (BackingStoreStatus) &&
+      !EFI_ERROR (Status) &&
+      (mFvInstance->VolumeHeader->FvLength == mFvInstance->VariableFvLength) &&
+      ValidateVariableStoreHeader (mFvInstance))
+  {
     return EFI_SUCCESS;
   }
 
@@ -867,8 +948,26 @@ InitializeFvFromEmmc (
     return Status;
   }
 
-  WriteLength = GoodFwVolHeader->HeaderLength;
+  WriteLength = GoodFwVolHeader->HeaderLength + sizeof (VARIABLE_STORE_HEADER);
   Status = VarStoreWrite (mFvInstance->FvBase, &WriteLength, (UINT8 *)GoodFwVolHeader);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = InitializeWorkingBlockHeader (
+             &WorkingBlockHeader,
+             FixedPcdGet32 (PcdFlashNvStorageFtwWorkingSize)
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  WriteLength = sizeof (WorkingBlockHeader);
+  Status = VarStoreWrite (
+             mFvInstance->FvBase + mFvInstance->VariableFvLength,
+             &WriteLength,
+             (UINT8 *)&WorkingBlockHeader
+             );
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -878,7 +977,21 @@ InitializeFvFromEmmc (
     return Status;
   }
 
-  return MonoRawEmmcTransfer (TRUE);
+  if (!ValidateVariableStoreHeader (mFvInstance)) {
+    return EFI_VOLUME_CORRUPTED;
+  }
+
+  BackingStoreStatus = MonoRawEmmcTransfer (TRUE);
+  if (EFI_ERROR (BackingStoreStatus)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "EmmcVarStoreDxe: raw eMMC store init writeback failed, using RAM-backed store only: %r\n",
+      BackingStoreStatus
+      ));
+    mFvInstance->Dirty = TRUE;
+  }
+
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -889,10 +1002,7 @@ CompleteInitialization (
   )
 {
   EFI_STATUS                  Status;
-  EFI_FV_BLOCK_MAP_ENTRY      *PtrBlockMapEntry;
   EFI_FW_VOL_BLOCK_DEVICE     *FvbDevice;
-  UINT32                      MaxLbaSize;
-  UINTN                       NumOfBlocks;
   RETURN_STATUS               PcdStatus;
   if (mFvInstance != NULL) {
     return EFI_ALREADY_STARTED;
@@ -905,13 +1015,16 @@ CompleteInitialization (
 
   mFvInstance->BlockIo      = BlockIo;
   mFvInstance->BlockIoHandle = Handle;
-  mFvInstance->FvLength     = FixedPcdGet32 (PcdFlashNvStorageVariableSize) +
+  mFvInstance->VariableFvLength = FixedPcdGet32 (PcdFlashNvStorageVariableSize);
+  mFvInstance->FvLength     = mFvInstance->VariableFvLength +
                               FixedPcdGet32 (PcdFlashNvStorageFtwWorkingSize) +
                               FixedPcdGet32 (PcdFlashNvStorageFtwSpareSize);
-  mFvInstance->FvBase       = (UINTN)AllocateRuntimeZeroPool (mFvInstance->FvLength);
+  mFvInstance->FvBase       = (UINTN)AllocateRuntimePages (EFI_SIZE_TO_PAGES (mFvInstance->FvLength));
   if (mFvInstance->FvBase == 0) {
     return EFI_OUT_OF_RESOURCES;
   }
+
+  ZeroMem ((VOID *)(UINTN)mFvInstance->FvBase, mFvInstance->FvLength);
 
   if (FixedPcdGet32 (PcdNvStorageEmmcSize) != mFvInstance->FvLength) {
     DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: NV size mismatch image=0x%x varstore=0x%zx\n",
@@ -924,20 +1037,7 @@ CompleteInitialization (
     return Status;
   }
 
-  MaxLbaSize  = 0;
-  NumOfBlocks = 0;
-  for (PtrBlockMapEntry = mFvInstance->VolumeHeader->BlockMap;
-       PtrBlockMapEntry->NumBlocks != 0;
-       PtrBlockMapEntry++)
-  {
-    if (MaxLbaSize < PtrBlockMapEntry->Length) {
-      MaxLbaSize = PtrBlockMapEntry->Length;
-    }
-
-    NumOfBlocks += PtrBlockMapEntry->NumBlocks;
-  }
-
-  mFvInstance->NumOfBlocks = NumOfBlocks;
+  mFvInstance->NumOfBlocks = mFvInstance->FvLength / MONO_VARSTORE_BLOCK_SIZE;
 
   FvbDevice = AllocateRuntimePool (sizeof (*FvbDevice));
   if (FvbDevice == NULL) {
@@ -1017,16 +1117,12 @@ CompleteInitialization (
   ASSERT_EFI_ERROR (Status);
 
   Status = gBS->LocateProtocol (&gEfiResetNotificationProtocolGuid, NULL, (VOID **)&mResetNotification);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: reset notification protocol not available yet: %r\n", Status));
-  } else {
+  if (!EFI_ERROR (Status)) {
     Status = mResetNotification->RegisterResetNotify (mResetNotification, MonoResetHandler);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: failed to register reset notify: %r\n", Status));
     }
   }
-
-  DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: initialized raw eMMC-backed variable store\n"));
   return EFI_SUCCESS;
 }
 
@@ -1090,7 +1186,6 @@ EmmcVarStoreInitialize (
                   );
   ASSERT_EFI_ERROR (Status);
 
-  DEBUG ((DEBUG_ERROR, "EmmcVarStoreDxe: waiting for raw eMMC BlockIo\n"));
   MonoBlockIoNotify (mBlockIoEvent, NULL);
   return EFI_SUCCESS;
 }

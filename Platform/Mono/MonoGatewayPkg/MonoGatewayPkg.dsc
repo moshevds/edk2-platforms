@@ -57,6 +57,9 @@
   TableHelperLib|DynamicTablesPkg/Library/Common/TableHelperLib/TableHelperLib.inf
 !endif
 
+[LibraryClasses.common.PEIM]
+  VariableFlashInfoLib|Platform/Mono/MonoGatewayPkg/Library/PeiVariableFlashInfoLib/PeiVariableFlashInfoLib.inf
+
 ################################################################################
 #
 # Components Section - list of all EDK II Modules needed by this Platform
@@ -115,6 +118,7 @@
     gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|FALSE
   }
   MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
+  MdeModulePkg/Universal/SmbiosDxe/SmbiosDxe.inf
   Platform/Mono/MonoGatewayPkg/Drivers/EmmcVarStoreDxe/EmmcVarStoreDxe.inf
   Silicon/NXP/Drivers/MmcHostDxe/MmcHostDxe.inf
   EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf

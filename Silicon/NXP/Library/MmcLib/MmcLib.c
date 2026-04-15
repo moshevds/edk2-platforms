@@ -144,35 +144,35 @@ DumpMmcRegs (
 
   Regs = BaseAddress;
 
-  DEBUG ((DEBUG_ERROR, "Dsaddr : 0x%x \n", Regs->Dsaddr));
-  DEBUG ((DEBUG_ERROR, "Blkattr : 0x%x \n", Regs->Blkattr));
-  DEBUG ((DEBUG_ERROR, "CmdArg : 0x%x \n", Regs->CmdArg));
-  DEBUG ((DEBUG_ERROR, "Xfertype : 0x%x \n", Regs->Xfertype));
-  DEBUG ((DEBUG_ERROR, "Rspns0 : 0x%x \n", Regs->Rspns0));
-  DEBUG ((DEBUG_ERROR, "Rspns1 : 0x%x \n", Regs->Rspns1));
-  DEBUG ((DEBUG_ERROR, "Rspns1 : 0x%x \n", Regs->Rspns1));
-  DEBUG ((DEBUG_ERROR, "Rspns3 : 0x%x \n", Regs->Rspns3));
-  DEBUG ((DEBUG_ERROR, "Datport : 0x%x \n", Regs->Datport));
-  DEBUG ((DEBUG_ERROR, "Prsstat : 0x%x \n", Regs->Prsstat));
-  DEBUG ((DEBUG_ERROR, "Proctl : 0x%x \n", Regs->Proctl));
-  DEBUG ((DEBUG_ERROR, "Sysctl : 0x%x \n", Regs->Sysctl));
-  DEBUG ((DEBUG_ERROR, "Irqstat : 0x%x \n", Regs->Irqstat));
-  DEBUG ((DEBUG_ERROR, "Irqstaten : 0x%x \n", Regs->Irqstaten));
-  DEBUG ((DEBUG_ERROR, "Irqsigen : 0x%x \n", Regs->Irqsigen));
-  DEBUG ((DEBUG_ERROR, "Autoc12err : 0x%x \n", Regs->Autoc12err));
-  DEBUG ((DEBUG_ERROR, "Hostcapblt : 0x%x \n", Regs->Hostcapblt));
-  DEBUG ((DEBUG_ERROR, "Wml : 0x%x \n", Regs->Wml));
-  DEBUG ((DEBUG_ERROR, "Mixctrl : 0x%x \n", Regs->Mixctrl));
-  DEBUG ((DEBUG_ERROR, "Fevt : 0x%x \n", Regs->Fevt));
-  DEBUG ((DEBUG_ERROR, "Admaes : 0x%x \n", Regs->Admaes));
-  DEBUG ((DEBUG_ERROR, "Adsaddr : 0x%x \n", Regs->Adsaddr));
-  DEBUG ((DEBUG_ERROR, "Hostver : 0x%x \n", Regs->Hostver));
-  DEBUG ((DEBUG_ERROR, "Dmaerraddr : 0x%x \n", Regs->Dmaerraddr));
-  DEBUG ((DEBUG_ERROR, "Dmaerrattr : 0x%x \n", Regs->Dmaerrattr));
-  DEBUG ((DEBUG_ERROR, "Hostcapblt2 : 0x%x \n", Regs->Hostcapblt2));
-  DEBUG ((DEBUG_ERROR, "Tcr : 0x%x \n", Regs->Tcr));
-  DEBUG ((DEBUG_ERROR, "Sddirctl : 0x%x \n", Regs->Sddirctl));
-  DEBUG ((DEBUG_ERROR, "Scr : 0x%x \n", Regs->Scr));
+  DEBUG ((DEBUG_ERROR, "Dsaddr : 0x%x \n", MmcRead ((UINTN)&Regs->Dsaddr)));
+  DEBUG ((DEBUG_ERROR, "Blkattr : 0x%x \n", MmcRead ((UINTN)&Regs->Blkattr)));
+  DEBUG ((DEBUG_ERROR, "CmdArg : 0x%x \n", MmcRead ((UINTN)&Regs->CmdArg)));
+  DEBUG ((DEBUG_ERROR, "Xfertype : 0x%x \n", MmcRead ((UINTN)&Regs->Xfertype)));
+  DEBUG ((DEBUG_ERROR, "Rspns0 : 0x%x \n", MmcRead ((UINTN)&Regs->Rspns0)));
+  DEBUG ((DEBUG_ERROR, "Rspns1 : 0x%x \n", MmcRead ((UINTN)&Regs->Rspns1)));
+  DEBUG ((DEBUG_ERROR, "Rspns2 : 0x%x \n", MmcRead ((UINTN)&Regs->Rspns2)));
+  DEBUG ((DEBUG_ERROR, "Rspns3 : 0x%x \n", MmcRead ((UINTN)&Regs->Rspns3)));
+  DEBUG ((DEBUG_ERROR, "Datport : 0x%x \n", MmcRead ((UINTN)&Regs->Datport)));
+  DEBUG ((DEBUG_ERROR, "Prsstat : 0x%x \n", MmcRead ((UINTN)&Regs->Prsstat)));
+  DEBUG ((DEBUG_ERROR, "Proctl : 0x%x \n", MmcRead ((UINTN)&Regs->Proctl)));
+  DEBUG ((DEBUG_ERROR, "Sysctl : 0x%x \n", MmcRead ((UINTN)&Regs->Sysctl)));
+  DEBUG ((DEBUG_ERROR, "Irqstat : 0x%x \n", MmcRead ((UINTN)&Regs->Irqstat)));
+  DEBUG ((DEBUG_ERROR, "Irqstaten : 0x%x \n", MmcRead ((UINTN)&Regs->Irqstaten)));
+  DEBUG ((DEBUG_ERROR, "Irqsigen : 0x%x \n", MmcRead ((UINTN)&Regs->Irqsigen)));
+  DEBUG ((DEBUG_ERROR, "Autoc12err : 0x%x \n", MmcRead ((UINTN)&Regs->Autoc12err)));
+  DEBUG ((DEBUG_ERROR, "Hostcapblt : 0x%x \n", MmcRead ((UINTN)&Regs->Hostcapblt)));
+  DEBUG ((DEBUG_ERROR, "Wml : 0x%x \n", MmcRead ((UINTN)&Regs->Wml)));
+  DEBUG ((DEBUG_ERROR, "Mixctrl : 0x%x \n", MmcRead ((UINTN)&Regs->Mixctrl)));
+  DEBUG ((DEBUG_ERROR, "Fevt : 0x%x \n", MmcRead ((UINTN)&Regs->Fevt)));
+  DEBUG ((DEBUG_ERROR, "Admaes : 0x%x \n", MmcRead ((UINTN)&Regs->Admaes)));
+  DEBUG ((DEBUG_ERROR, "Adsaddr : 0x%x \n", MmcRead ((UINTN)&Regs->Adsaddr)));
+  DEBUG ((DEBUG_ERROR, "Hostver : 0x%x \n", MmcRead ((UINTN)&Regs->Hostver)));
+  DEBUG ((DEBUG_ERROR, "Dmaerraddr : 0x%x \n", MmcRead ((UINTN)&Regs->Dmaerraddr)));
+  DEBUG ((DEBUG_ERROR, "Dmaerrattr : 0x%x \n", MmcRead ((UINTN)&Regs->Dmaerrattr)));
+  DEBUG ((DEBUG_ERROR, "Hostcapblt2 : 0x%x \n", MmcRead ((UINTN)&Regs->Hostcapblt2)));
+  DEBUG ((DEBUG_ERROR, "Tcr : 0x%x \n", MmcRead ((UINTN)&Regs->Tcr)));
+  DEBUG ((DEBUG_ERROR, "Sddirctl : 0x%x \n", MmcRead ((UINTN)&Regs->Sddirctl)));
+  DEBUG ((DEBUG_ERROR, "Scr : 0x%x \n", MmcRead ((UINTN)&Regs->Scr)));
 }
 
 /**
@@ -199,6 +199,12 @@ GetDmaBuffer (
     return NULL;
   }
 
+  //
+  // DmaAllocateBuffer() is only guaranteed suitable for
+  // MapOperationBusMasterCommonBuffer. Treat the staging buffer as a true
+  // common buffer and copy to/from it explicitly in the caller.
+  //
+  DmaData->MapOperation = MapOperationBusMasterCommonBuffer;
   Status = DmaMap (DmaData->MapOperation, DmaData->DmaAddr,
                   &DmaData->Bytes, &PhyAddr, &DmaData->Mapping);
   if (Status) {
@@ -262,7 +268,9 @@ SdxcXfertype (
 
   if (Data) {
     Xfertype |= XFERTYPE_DPSEL;
-    Xfertype |= XFERTYPE_DMAEN; //DMA Support
+    if (Data->Addr != NULL) {
+      Xfertype |= XFERTYPE_DMAEN; // DMA Support
+    }
 
     if (Data->Blocks > 1) {
       Xfertype |= XFERTYPE_MSBSEL;
@@ -313,6 +321,7 @@ SdxcSetupData (
 {
   INT32             Timeout;
   UINT32            WmlVal;
+  UINT32            WmlReg;
 
   EFI_PHYSICAL_ADDRESS Addr;
 
@@ -327,7 +336,10 @@ SdxcSetupData (
       WmlVal = WML_RD_MAX_VAL;
     }
 
-    MmcAndThenOr ((UINTN)&Regs->Wml, ~WML_RD_MASK, WmlVal);
+    WmlReg  = MmcRead ((UINTN)&Regs->Wml);
+    WmlReg &= ~WML_RD_MASK;
+    WmlReg |= WmlVal;
+    MmcWrite ((UINTN)&Regs->Wml, WmlReg);
 
   } else {
     if (WmlVal > WML_WR_MAX) {
@@ -339,11 +351,18 @@ SdxcSetupData (
       return EFI_ACCESS_DENIED;
     }
 
-    MmcAndThenOr ((UINTN)&Regs->Wml, ~WML_WR_MASK, WmlVal << 16);
+    WmlReg  = MmcRead ((UINTN)&Regs->Wml);
+    WmlReg &= ~WML_WR_MASK;
+    WmlReg |= WmlVal << 16;
+    MmcWrite ((UINTN)&Regs->Wml, WmlReg);
   }
 
-  Addr = (EFI_PHYSICAL_ADDRESS)Data->Addr;
-  MmcWrite ((UINTN)&Regs->Dsaddr, Addr);
+  if (Data->Addr != NULL) {
+    Addr = (EFI_PHYSICAL_ADDRESS)Data->Addr;
+    MmcWrite ((UINTN)&Regs->Dsaddr, Addr);
+  } else {
+    MmcWrite ((UINTN)&Regs->Dsaddr, 0);
+  }
 
   MmcWrite ((UINTN)&Regs->Blkattr, Data->Blocks << 16 | Data->Blocksize);
 

@@ -16,6 +16,7 @@
 #include <Library/UefiBootManagerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
+#include <Protocol/VariableWrite.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/ShellDynamicCommand.h>
 
@@ -23,6 +24,8 @@
   { 0x27451d35, 0xf389, 0x4f2f, { 0x89, 0xd7, 0x17, 0x4c, 0xc6, 0x38, 0x37, 0x21 } }
 
 STATIC EFI_GUID mMonoSelfTestAppFileGuid = MONO_SELF_TEST_APP_FILE_GUID;
+STATIC VOID     *mVariableWriteArchRegistration;
+STATIC EFI_EVENT mVariableWriteArchEvent;
 
 STATIC
 EFI_DEVICE_PATH_PROTOCOL *
@@ -54,7 +57,7 @@ BuildMonoSelfTestDevicePath (
 }
 
 STATIC
-VOID
+EFI_STATUS
 RegisterMonoSelfTestBootOption (
   IN EFI_HANDLE  ImageHandle
   )
@@ -68,7 +71,7 @@ RegisterMonoSelfTestBootOption (
 
   DevicePath = BuildMonoSelfTestDevicePath (ImageHandle);
   if (DevicePath == NULL) {
-    return;
+    return EFI_NOT_FOUND;
   }
 
   Status = EfiBootManagerInitializeLoadOption (
@@ -83,17 +86,46 @@ RegisterMonoSelfTestBootOption (
              );
   FreePool (DevicePath);
   if (EFI_ERROR (Status)) {
-    return;
+    DEBUG ((DEBUG_ERROR, "MonoSelfTestDxe: InitializeLoadOption failed: %r\n", Status));
+    return Status;
   }
 
   BootOptions = EfiBootManagerGetLoadOptions (&BootOptionCount, LoadOptionTypeBoot);
   OptionIndex = EfiBootManagerFindLoadOption (&NewOption, BootOptions, BootOptionCount);
   if (OptionIndex == -1) {
-    EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
+    Status = EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "MonoSelfTestDxe: AddLoadOptionVariable failed: %r\n", Status));
+    } else {
+      DEBUG ((DEBUG_INFO, "MonoSelfTestDxe: registered boot option\n"));
+    }
+  } else {
+    Status = EFI_ALREADY_STARTED;
+    DEBUG ((DEBUG_INFO, "MonoSelfTestDxe: boot option already present\n"));
   }
 
   EfiBootManagerFreeLoadOption (&NewOption);
   EfiBootManagerFreeLoadOptions (BootOptions, BootOptionCount);
+  return Status;
+}
+
+STATIC
+VOID
+EFIAPI
+MonoSelfTestVariableWriteArchNotify (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = RegisterMonoSelfTestBootOption ((EFI_HANDLE)Context);
+  if (!EFI_ERROR (Status) || (Status == EFI_ALREADY_STARTED)) {
+    if (mVariableWriteArchEvent != NULL) {
+      gBS->CloseEvent (mVariableWriteArchEvent);
+      mVariableWriteArchEvent = NULL;
+    }
+  }
 }
 
 STATIC
@@ -169,9 +201,26 @@ MonoSelfTestDxeEntryPoint (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
-  EFI_STATUS Status;
+  EFI_STATUS  Status;
+  VOID        *VariableWriteArch;
 
-  RegisterMonoSelfTestBootOption (ImageHandle);
+  VariableWriteArch = NULL;
+  Status = gBS->LocateProtocol (
+                  &gEfiVariableWriteArchProtocolGuid,
+                  NULL,
+                  &VariableWriteArch
+                  );
+  if (!EFI_ERROR (Status)) {
+    RegisterMonoSelfTestBootOption (ImageHandle);
+  } else {
+    mVariableWriteArchEvent = EfiCreateProtocolNotifyEvent (
+                               &gEfiVariableWriteArchProtocolGuid,
+                               TPL_CALLBACK,
+                               MonoSelfTestVariableWriteArchNotify,
+                               ImageHandle,
+                               &mVariableWriteArchRegistration
+                               );
+  }
 
   Status = gBS->InstallProtocolInterface (
                   &ImageHandle,

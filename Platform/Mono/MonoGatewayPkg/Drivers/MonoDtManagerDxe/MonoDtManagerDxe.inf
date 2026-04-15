@@ -40,6 +40,7 @@
 
 [Protocols]
   gEfiLoadedImageProtocolGuid
+  gEfiVariableWriteArchProtocolGuid
   gEfiShellDynamicCommandProtocolGuid ## PRODUCES
   gMonoDtManagerProtocolGuid          ## PRODUCES
 

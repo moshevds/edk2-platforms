@@ -26,6 +26,7 @@
 
 #include <Protocol/LoadedImage.h>
 #include <Protocol/MonoDtManager.h>
+#include <Protocol/VariableWrite.h>
 #include <Protocol/Shell.h>
 #include <Protocol/ShellDynamicCommand.h>
 #include <Protocol/ShellParameters.h>
@@ -37,6 +38,8 @@
   { 0x4b0eb03f, 0x5585, 0x4fb5, { 0xae, 0xbe, 0x0f, 0xc6, 0x34, 0x45, 0x9d, 0x21 } }
 
 STATIC EFI_GUID mMonoDtManagerAppFileGuid = MONO_DT_MANAGER_APP_FILE_GUID;
+STATIC VOID     *mVariableWriteArchRegistration;
+STATIC EFI_EVENT mVariableWriteArchEvent;
 
 STATIC CONST MONO_DT_BLOB_DESCRIPTOR mMonoEmbeddedDtbs[] = {
   {
@@ -290,7 +293,7 @@ STATIC MONO_DT_MANAGER_PROTOCOL mMonoDtManager = {
 };
 
 STATIC
-VOID
+EFI_STATUS
 RegisterMonoDtManagerBootOption (
   IN EFI_HANDLE  ImageHandle
   )
@@ -304,7 +307,7 @@ RegisterMonoDtManagerBootOption (
 
   Status = BuildMonoAppDevicePath (ImageHandle, &mMonoDtManagerAppFileGuid, &DevicePath);
   if (EFI_ERROR (Status)) {
-    return;
+    return Status;
   }
 
   Status = EfiBootManagerInitializeLoadOption (
@@ -319,17 +322,46 @@ RegisterMonoDtManagerBootOption (
              );
   FreePool (DevicePath);
   if (EFI_ERROR (Status)) {
-    return;
+    DEBUG ((DEBUG_ERROR, "MonoDtManagerDxe: InitializeLoadOption failed: %r\n", Status));
+    return Status;
   }
 
   BootOptions = EfiBootManagerGetLoadOptions (&BootOptionCount, LoadOptionTypeBoot);
   OptionIndex = EfiBootManagerFindLoadOption (&NewOption, BootOptions, BootOptionCount);
   if (OptionIndex == -1) {
-    EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
+    Status = EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "MonoDtManagerDxe: AddLoadOptionVariable failed: %r\n", Status));
+    } else {
+      DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: registered boot option\n"));
+    }
+  } else {
+    Status = EFI_ALREADY_STARTED;
+    DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: boot option already present\n"));
   }
 
   EfiBootManagerFreeLoadOption (&NewOption);
   EfiBootManagerFreeLoadOptions (BootOptions, BootOptionCount);
+  return Status;
+}
+
+STATIC
+VOID
+EFIAPI
+MonoDtManagerVariableWriteArchNotify (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = RegisterMonoDtManagerBootOption ((EFI_HANDLE)Context);
+  if (!EFI_ERROR (Status) || (Status == EFI_ALREADY_STARTED)) {
+    if (mVariableWriteArchEvent != NULL) {
+      gBS->CloseEvent (mVariableWriteArchEvent);
+      mVariableWriteArchEvent = NULL;
+    }
+  }
 }
 
 STATIC
@@ -468,10 +500,27 @@ MonoDtManagerDxeEntryPoint (
   EFI_STATUS  Status;
   EFI_HANDLE  ShellCommandHandle;
   EFI_HANDLE  ProtocolHandle;
+  VOID        *VariableWriteArch;
 
   (VOID)SystemTable;
 
-  RegisterMonoDtManagerBootOption (ImageHandle);
+  VariableWriteArch = NULL;
+  Status = gBS->LocateProtocol (
+                  &gEfiVariableWriteArchProtocolGuid,
+                  NULL,
+                  &VariableWriteArch
+                  );
+  if (!EFI_ERROR (Status)) {
+    RegisterMonoDtManagerBootOption (ImageHandle);
+  } else {
+    mVariableWriteArchEvent = EfiCreateProtocolNotifyEvent (
+                               &gEfiVariableWriteArchProtocolGuid,
+                               TPL_CALLBACK,
+                               MonoDtManagerVariableWriteArchNotify,
+                               ImageHandle,
+                               &mVariableWriteArchRegistration
+                               );
+  }
 
   ProtocolHandle = ImageHandle;
   Status = gBS->InstallProtocolInterface (

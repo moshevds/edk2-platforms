@@ -36,6 +36,7 @@
 
 [Protocols]
   gEfiLoadedImageProtocolGuid
+  gEfiVariableWriteArchProtocolGuid
   gEfiShellDynamicCommandProtocolGuid ## PRODUCES
 
 [Depex]

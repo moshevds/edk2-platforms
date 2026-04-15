@@ -189,21 +189,6 @@ SendCmd (
   // Mask all irqs
   MmcWrite ((UINTN)&Regs->Irqsigen, 0);
 
-  // Send the command
-  DEBUG ((
-    DEBUG_ERROR,
-    "SendCmd: cmd=%u arg=0x%08x xfertype=0x%08x prsstat=0x%08x sysctl=0x%08x proctl=0x%08x irqstat=0x%08x irqstaten=0x%08x tbctl=0x%08x hostcapblt=0x%08x\n",
-    Cmd->CmdIdx,
-    Cmd->CmdArg,
-    Xfertype,
-    MmcRead ((UINTN)&Regs->Prsstat),
-    MmcRead ((UINTN)&Regs->Sysctl),
-    MmcRead ((UINTN)&Regs->Proctl),
-    MmcRead ((UINTN)&Regs->Irqstat),
-    MmcRead ((UINTN)&Regs->Irqstaten),
-    MmcRead ((UINTN)&Regs->Tcr),
-    MmcRead ((UINTN)&Regs->Hostcapblt)
-    ));
   MmcWrite ((UINTN)&Regs->CmdArg, Cmd->CmdArg);
   MmcWrite ((UINTN)&Regs->Xfertype, Xfertype);
 
@@ -354,6 +339,60 @@ PrepareTransfer (
   return Status;
 }
 
+STATIC
+EFI_STATUS
+PioTransferData (
+  IN  VOID    *BaseAddress,
+  IN  UINT32  Flags,
+  IN  UINTN   Length,
+  IN  VOID    *Buffer
+  )
+{
+  SDXC_REGS  *Regs;
+  UINT8      *ByteBuffer;
+  UINT32     DataWord;
+  UINTN      Offset;
+  INT32      Timeout;
+
+  if ((Length % sizeof (UINT32)) != 0) {
+    return EFI_BAD_BUFFER_SIZE;
+  }
+
+  Regs       = BaseAddress;
+  ByteBuffer = Buffer;
+
+  for (Offset = 0; Offset < Length; Offset += sizeof (UINT32)) {
+    Timeout = TIMEOUT;
+    if ((Flags & MMC_DATA_READ) != 0) {
+      while (((MmcRead ((UINTN)&Regs->Prsstat) & PRSSTATE_BREN) == 0) && --Timeout) {
+        MicroSecondDelay (10);
+      }
+
+      if (Timeout <= 0) {
+        DEBUG ((DEBUG_ERROR, "PioTransferData(): timeout waiting for BREN\n"));
+        return EFI_TIMEOUT;
+      }
+
+      DataWord = MmcRead ((UINTN)&Regs->Datport);
+      CopyMem (ByteBuffer + Offset, &DataWord, sizeof (DataWord));
+    } else {
+      while (((MmcRead ((UINTN)&Regs->Prsstat) & PRSSTATE_BWEN) == 0) && --Timeout) {
+        MicroSecondDelay (10);
+      }
+
+      if (Timeout <= 0) {
+        DEBUG ((DEBUG_ERROR, "PioTransferData(): timeout waiting for BWEN\n"));
+        return EFI_TIMEOUT;
+      }
+
+      CopyMem (&DataWord, ByteBuffer + Offset, sizeof (DataWord));
+      MmcWrite ((UINTN)&Regs->Datport, DataWord);
+    }
+  }
+
+  return EFI_SUCCESS;
+}
+
 /**
   Function to Read MMC Block
 
@@ -376,21 +415,44 @@ ReadBlock (
   )
 {
   EFI_STATUS        Status;
+  BOOLEAN           UsePio;
   DMA_DATA          DmaData;
-  VOID              *Temp;
+  VOID              *DeviceBuffer;
 
-  Temp = NULL;
+  DeviceBuffer = NULL;
+  UsePio = FALSE;
+
+  if (UsePio) {
+    Status = PrepareTransfer (BaseAddress, MMC_DATA_READ, Length, NULL, &Cmd);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Read: Fail to setup controller 0x%x \n", Status));
+      return Status;
+    }
+
+    Status = PioTransferData (BaseAddress, MMC_DATA_READ, Length, Buffer);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Read PIO Failed (0x%x) \n", Status));
+      return Status;
+    }
+
+    Status = Transfer (BaseAddress);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Read Failed (0x%x) \n", Status));
+    }
+
+    return Status;
+  }
 
   DmaData.Bytes = Length;
-  DmaData.MapOperation = MapOperationBusMasterRead;
+  DmaData.MapOperation = MapOperationBusMasterWrite;
 
-  Temp = GetDmaBuffer (&DmaData);
-  if (Temp == NULL) {
+  DeviceBuffer = GetDmaBuffer (&DmaData);
+  if (DeviceBuffer == NULL) {
     DEBUG ((DEBUG_ERROR,"Mmc Read : Failed to get DMA buffer \n"));
     return EFI_OUT_OF_RESOURCES;
   }
 
-  Status = PrepareTransfer (BaseAddress, MMC_DATA_READ, Length, Temp, &Cmd);
+  Status = PrepareTransfer (BaseAddress, MMC_DATA_READ, Length, DeviceBuffer, &Cmd);
   if (Status) {
     DEBUG ((DEBUG_ERROR,"Mmc Read: Fail to setup controller 0x%x \n", Status));
     goto ReadExit;
@@ -402,7 +464,7 @@ ReadBlock (
     goto ReadExit;
   }
 
-  InternalMemCopyMem (Buffer, Temp , DmaData.Bytes);
+  InternalMemCopyMem (Buffer, DmaData.DmaAddr, DmaData.Bytes);
 
 ReadExit:
   FreeDmaBuffer (&DmaData);
@@ -430,23 +492,46 @@ WriteBlock (
   )
 {
   EFI_STATUS        Status;
+  BOOLEAN           UsePio;
   DMA_DATA          DmaData;
-  VOID              *Temp;
+  VOID              *DeviceBuffer;
 
-  Temp = NULL;
+  DeviceBuffer = NULL;
+  UsePio = FALSE;
+
+  if (UsePio) {
+    Status = PrepareTransfer (BaseAddress, MMC_DATA_WRITE, Length, NULL, &Cmd);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Write: Fail to setup controller 0x%x \n", Status));
+      return Status;
+    }
+
+    Status = PioTransferData (BaseAddress, MMC_DATA_WRITE, Length, Buffer);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Write PIO Failed (0x%x) \n", Status));
+      return Status;
+    }
+
+    Status = Transfer (BaseAddress);
+    if (Status) {
+      DEBUG ((DEBUG_ERROR,"Mmc Write Failed (0x%x) \n", Status));
+    }
+
+    return Status;
+  }
 
   DmaData.Bytes = Length;
-  DmaData.MapOperation = MapOperationBusMasterWrite;
+  DmaData.MapOperation = MapOperationBusMasterRead;
 
-  Temp = GetDmaBuffer (&DmaData);
-  if (Temp == NULL) {
+  DeviceBuffer = GetDmaBuffer (&DmaData);
+  if (DeviceBuffer == NULL) {
     DEBUG ((DEBUG_ERROR,"Mmc Write : Failed to get DMA buffer \n"));
     return EFI_OUT_OF_RESOURCES;
   }
 
-  InternalMemCopyMem (Temp, Buffer, DmaData.Bytes);
+  InternalMemCopyMem (DmaData.DmaAddr, Buffer, DmaData.Bytes);
 
-  Status = PrepareTransfer (BaseAddress, MMC_DATA_WRITE, Length, Temp, &Cmd);
+  Status = PrepareTransfer (BaseAddress, MMC_DATA_WRITE, Length, DeviceBuffer, &Cmd);
   if (Status) {
     DEBUG ((DEBUG_ERROR,"Mmc Write: Fail to setup controller 0x%x \n", Status));
     goto WriteExit;
@@ -505,8 +590,10 @@ SetIos (
   )
 {
   SDXC_REGS            *Regs;
+  UINT32               EffectiveClock;
 
   Regs = BaseAddress;
+  EffectiveClock = BusClockFreq;
 
   DEBUG_MSG ("BusClockFreq %d, BusWidth %d\n", BusClockFreq, BusWidth);
 
@@ -514,9 +601,27 @@ SetIos (
     return EFI_UNSUPPORTED;
   }
 
+  //
+  // This NXP host path does not currently program a distinct high-speed timing
+  // mode in the controller. Running the card in HS timing at 52 MHz has been
+  // producing deterministic data CRC/end-bit errors on normal reads and writes.
+  // Keep the interface in a conservative, reliable lane until the host timing
+  // support is implemented properly.
+  //
+  if ((TimingMode != EMMCBACKWARD) && (EffectiveClock > 26000000)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "SetIos(): clamping timing=%u requested=%u to %u for reliability\n",
+      TimingMode,
+      BusClockFreq,
+      26000000U
+      ));
+    EffectiveClock = 26000000;
+  }
+
   // Set the clock speed
-  if (BusClockFreq) {
-    SetSysctl (Regs, BusClockFreq);
+  if (EffectiveClock) {
+    SetSysctl (Regs, EffectiveClock);
   }
 
   // Preserve the controller's default protocol-control baseline, matching U-Boot.
@@ -645,7 +750,7 @@ MmcInitialize (
   mMmc->SdhcClk = GetEsdhcClockHz ();
   DEBUG ((DEBUG_ERROR, "MmcInitialize(): sdhcClk=%u caps=0x%x\n", (UINT32)mMmc->SdhcClk, Caps));
 
-  mMmc->HostCaps = MMC_MODE_4_BIT | MMC_MODE_8_BIT | MMC_MODE_HC;
+  mMmc->HostCaps = MMC_MODE_4_BIT | MMC_MODE_HC;
 
   if (Caps & SDXC_HOSTCAPBLT_HSS) {
     mMmc->HostCaps |= MMC_MODE_HS_52MHz | MMC_MODE_HS;

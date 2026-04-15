@@ -103,7 +103,7 @@
 
 #define WML_RD_MAX                 0x10
 #define WML_WR_MAX                 0x80
-#define WML_RD_MAX_VAL             0x00
+#define WML_RD_MAX_VAL             0x10
 #define WML_WR_MAX_VAL             0x80
 #define WML_RD_MASK                0xff
 #define WML_WR_MASK                0xff0000
