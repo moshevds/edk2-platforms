@@ -153,6 +153,11 @@
 ##
 
 [PcdsDynamicDefault.common]
+  # Use NXP's shifted ECAM layout so ACPI MCFG consumers can access
+  # PCIe config space.
+  gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable|TRUE
+  gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort|TRUE
+
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64|0
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64|0
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64|0

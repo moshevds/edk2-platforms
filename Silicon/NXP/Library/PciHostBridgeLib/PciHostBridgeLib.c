@@ -478,8 +478,9 @@ PcieLsSetupAtu (
     } else {
       Cfg0Size = ECAM_BUS_SIZE;
     }
-    // Region for type1 CFG transactions (for bus > 1)
-    Cfg1Size = (ECAM_CFG_REGION_SIZE - ECAM_BUS_SIZE); // 255MB
+    // CFG1 starts at base + 2 MiB, so cover the remaining buses in the
+    // 256 MiB ECAM aperture.
+    Cfg1Size = (ECAM_CFG_REGION_SIZE - SIZE_2MB);
   } else {
     Cfg0BaseAddr = Cfg0Base;
     Cfg1BaseAddr = Cfg1Base;

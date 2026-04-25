@@ -444,11 +444,16 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       })
     }
 
+    /*
+      The LS1046A DesignWare root port is DBI-only and is not visible
+      through generic ECAM. Expose the first downstream bus as the ACPI
+      root bus so OS ECAM access lands on the shifted CFG0 window.
+    */
     Device (PCI2) {
       Name (_HID, EISAID ("PNP0A08"))
       Name (_CID, EISAID ("PNP0A03"))
       Name (_SEG, MONO_PCIE3_SEGMENT)
-      Name (_BBN, MONO_PCIE_BUSNUM_MIN)
+      Name (_BBN, MONO_PCIE_OS_BUSNUM_MIN)
       Name (_UID, "PCI2")
       Name (_CCA, One)
 
@@ -471,10 +476,10 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
             ResourceProducer,
             MinFixed, MaxFixed, PosDecode,
             0,
-            MONO_PCIE_BUSNUM_MIN,
+            MONO_PCIE_OS_BUSNUM_MIN,
             MONO_PCIE_BUSNUM_MAX,
             0,
-            256
+            MONO_PCIE_OS_BUSNUM_COUNT
           )
 
           QWordMemory (
@@ -482,9 +487,9 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
             MinFixed, MaxFixed,
             Cacheable, ReadWrite,
             0,
-            MONO_PCIE3_MEM_BASE,
-            0x507FFFFFFF,
-            0,
+            MONO_PCIE3_MEM_BUS_BASE,
+            MONO_PCIE3_MEM_BUS_LIMIT,
+            MONO_PCIE3_MEM_TRANSLATION,
             MONO_PCIE3_MEM_SIZE
           )
 
@@ -506,12 +511,6 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
         })
 
         Return (RBUF)
-      }
-
-      Device (RP00) {
-        Name (_ADR, Zero)
-        Name (_SUN, MONO_PCIE3_SLOT)
-        MONO_DSDT_STA_FLAG (EPC2)
       }
 
       Device (RES0) {
