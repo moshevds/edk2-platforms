@@ -7,18 +7,27 @@
 **/
 
 #include <PiDxe.h>
+#include <Guid/Fdt.h>
 #include <IndustryStandard/Pci22.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/FdtLib.h>
 #include <Library/IoAccessLib.h>
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
 #include <Library/PciHostBridgeLib.h>
 #include <Library/SerDes.h>
+#include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiLib.h>
 #include <Pcie.h>
+#include <Protocol/NonDiscoverableDevice.h>
+#include <Protocol/NxpPcieStreamIdMap.h>
 #include <Protocol/PciHostBridgeResourceAllocation.h>
+#include <Protocol/PciIo.h>
 #include <Protocol/PciRootBridgeIo.h>
+
+#include "PciHostBridgeLib.h"
 
 #pragma pack(1)
 typedef struct {
@@ -185,8 +194,586 @@ STATIC CHAR16 *mPciHostBridgeLibAcpiAddressSpaceTypeStr[] = {
 #define DW_PCIE_PORT_DEBUG1                  0x72C
 #define DW_PCIE_PORT_DEBUG1_LINK_UP          BIT4
 #define DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING BIT29
+#define NXP_PCIE_FDT_COMPATIBLE              "fsl,ls1046a-pcie"
 
 PCI_ROOT_BRIDGE mPciRootBridges[NUM_PCIE_CONTROLLER];
+
+STATIC EFI_EVENT    mPciIoNotifyEvent;
+STATIC VOID         *mPciIoNotifyRegistration;
+STATIC EFI_HANDLE   mPcieStreamIdMapProtocolHandle;
+STATIC LS_PCIE      mLsPcie[NUM_PCIE_CONTROLLER];
+STATIC UINT32       mNextStreamId;
+STATIC BOOLEAN      mStreamIdAllocatorInitialized;
+STATIC BOOLEAN      mPcieStreamIdMappingPrepared;
+
+STATIC NXP_PCIE_STREAM_ID_MAPPING  mPcieStreamIdMappings[
+                                      NUM_PCIE_CONTROLLER * PCIE_LUT_ENTRY_COUNT
+                                      ];
+
+STATIC NXP_PCIE_STREAM_ID_MAP_PROTOCOL  mPcieStreamIdMapProtocol = {
+  NXP_PCIE_STREAM_ID_MAP_PROTOCOL_REVISION,
+  0,
+  ARRAY_SIZE (mPcieStreamIdMappings),
+  mPcieStreamIdMappings,
+  NULL
+};
+
+STATIC
+VOID
+InitializeStreamIdAllocator (
+  VOID
+  )
+{
+  if (mStreamIdAllocatorInitialized) {
+    return;
+  }
+
+  mNextStreamId = FixedPcdGet32 (PcdPcieStreamIdStart);
+  mStreamIdAllocatorInitialized = TRUE;
+
+  if (FixedPcdGet32 (PcdPcieStreamIdStart) > FixedPcdGet32 (PcdPcieStreamIdEnd)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "NXP PCIe StreamID: invalid allocation range start=0x%x end=0x%x\n",
+      FixedPcdGet32 (PcdPcieStreamIdStart),
+      FixedPcdGet32 (PcdPcieStreamIdEnd)
+      ));
+  }
+}
+
+STATIC
+VOID
+PreparePcieStreamIdMapping (
+  VOID
+  )
+{
+  if (!FeaturePcdGet (PcdPcieStreamIdMappingEnable) || mPcieStreamIdMappingPrepared) {
+    return;
+  }
+
+  mPcieStreamIdMapProtocol.MappingCount = 0;
+  mStreamIdAllocatorInitialized         = FALSE;
+  InitializeStreamIdAllocator ();
+
+  mPcieStreamIdMappingPrepared = TRUE;
+}
+
+STATIC
+VOID
+InitializePcieStreamIdState (
+  IN UINTN                 ControllerIndex,
+  IN EFI_PHYSICAL_ADDRESS  ControllerAddress
+  )
+{
+  mLsPcie[ControllerIndex].ControllerAddress = (UINTN)ControllerAddress;
+  mLsPcie[ControllerIndex].NextLutIndex      = 0;
+  mLsPcie[ControllerIndex].CurrentStreamId   = FixedPcdGet32 (PcdPcieStreamIdStart);
+  mLsPcie[ControllerIndex].ControllerIndex   = (INT32)ControllerIndex;
+  mLsPcie[ControllerIndex].LsPcieLut         = (LS_PCIE_LUT *)((UINTN)ControllerAddress + PCI_LUT_BASE);
+}
+
+STATIC
+EFI_STATUS
+InstallPcieStreamIdMapProtocol (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+
+  if (!FeaturePcdGet (PcdPcieStreamIdMappingEnable)) {
+    return EFI_UNSUPPORTED;
+  }
+
+  if (mPcieStreamIdMapProtocolHandle != NULL) {
+    return EFI_ALREADY_STARTED;
+  }
+
+  Status = gBS->InstallProtocolInterface (
+                  &mPcieStreamIdMapProtocolHandle,
+                  &gNxpPcieStreamIdMapProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  &mPcieStreamIdMapProtocol
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: failed to install map protocol: %r\n", Status));
+  } else {
+    DEBUG ((
+      DEBUG_INFO,
+      "NXP PCIe StreamID: installed map protocol capacity=%u\n",
+      mPcieStreamIdMapProtocol.MappingCapacity
+      ));
+  }
+
+  return Status;
+}
+
+STATIC
+VOID
+PcieLutSetMapping (
+  IN LS_PCIE  *LsPcie,
+  IN UINT32   LutIndex,
+  IN UINT32   RequesterId,
+  IN UINT32   StreamId
+  )
+{
+  MMIO_OPERATIONS  *PcieOps;
+
+  PcieOps = GetMmioOperations (FeaturePcdGet (PcdPciLutBigEndian));
+
+  //
+  // Leave the LUT mask at its reset value. The upper register carries the RID
+  // match value and the lower register carries the resulting StreamID.
+  //
+  PcieOps->Write32 ((UINTN)&LsPcie->LsPcieLut->PexLut[LutIndex].PexLudr, RequesterId << 16);
+  PcieOps->Write32 ((UINTN)&LsPcie->LsPcieLut->PexLut[LutIndex].PexLldr, StreamId | PCIE_LUT_ENABLE);
+
+  DEBUG ((
+    DEBUG_INFO,
+    "NXP PCIe StreamID: LUT%u RID=0x%x LUDR=0x%08x LLDR=0x%08x\n",
+    LutIndex,
+    RequesterId,
+    PcieOps->Read32 ((UINTN)&LsPcie->LsPcieLut->PexLut[LutIndex].PexLudr),
+    PcieOps->Read32 ((UINTN)&LsPcie->LsPcieLut->PexLut[LutIndex].PexLldr)
+    ));
+}
+
+STATIC
+INT32
+PcieNextLutIndex (
+  IN LS_PCIE  *LsPcie
+  )
+{
+  if (LsPcie->NextLutIndex >= PCIE_LUT_ENTRY_COUNT) {
+    return -1;
+  }
+
+  return LsPcie->NextLutIndex++;
+}
+
+STATIC
+INT32
+PcieGetStreamId (
+  IN LS_PCIE  *LsPcie
+  )
+{
+  UINT32  StreamId;
+
+  InitializeStreamIdAllocator ();
+
+  if (PcdGetBool (PcdPciStreamIdPerCtrl)) {
+    StreamId = (UINT32)LsPcie->CurrentStreamId;
+    if (StreamId > FixedPcdGet32 (PcdPcieStreamIdEnd)) {
+      return -1;
+    }
+
+    LsPcie->CurrentStreamId++;
+    return (INT32)(StreamId | ((LsPcie->ControllerIndex + 1) << 11));
+  }
+
+  if (mNextStreamId > FixedPcdGet32 (PcdPcieStreamIdEnd)) {
+    return -1;
+  }
+
+  return (INT32)mNextStreamId++;
+}
+
+STATIC
+BOOLEAN
+PcieRequesterIdAlreadyMapped (
+  IN UINTN   Segment,
+  IN UINT32  RequesterId
+  )
+{
+  UINTN  Index;
+
+  for (Index = 0; Index < mPcieStreamIdMapProtocol.MappingCount; Index++) {
+    if ((mPcieStreamIdMapProtocol.Mappings[Index].Segment == Segment) &&
+        (mPcieStreamIdMapProtocol.Mappings[Index].RequesterId == RequesterId))
+    {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+STATIC
+VOID
+RecordPcieStreamIdMapping (
+  IN UINTN   Segment,
+  IN UINTN   Bus,
+  IN UINTN   Device,
+  IN UINTN   Function,
+  IN UINT32  RequesterId,
+  IN UINT32  StreamId,
+  IN UINT32  ControllerIndex,
+  IN UINT32  LutIndex
+  )
+{
+  NXP_PCIE_STREAM_ID_MAPPING  *Mapping;
+
+  if (mPcieStreamIdMapProtocol.MappingCount >= mPcieStreamIdMapProtocol.MappingCapacity) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: mapping table is full\n"));
+    return;
+  }
+
+  Mapping = &mPcieStreamIdMapProtocol.Mappings[mPcieStreamIdMapProtocol.MappingCount++];
+  Mapping->Segment         = (UINT16)Segment;
+  Mapping->Bus             = (UINT8)Bus;
+  Mapping->Device          = (UINT8)Device;
+  Mapping->Function        = (UINT8)Function;
+  Mapping->ControllerIndex = (UINT8)ControllerIndex;
+  Mapping->LutIndex        = (UINT8)LutIndex;
+  Mapping->Reserved        = 0;
+  Mapping->RequesterId     = RequesterId;
+  Mapping->StreamId        = StreamId;
+
+  DEBUG ((
+    DEBUG_INFO,
+    "NXP PCIe StreamID: PCIE%d BDF=%02x:%02x.%x requester=0x%x stream=0x%x LUT=%u\n",
+    (UINT32)ControllerIndex + 1,
+    (UINT32)Bus,
+    (UINT32)Device,
+    (UINT32)Function,
+    RequesterId,
+    StreamId,
+    LutIndex
+    ));
+}
+
+STATIC
+EFI_STATUS
+MapPcieRequesterId (
+  IN LS_PCIE  *LsPcie,
+  IN UINTN    Segment,
+  IN UINTN    Bus,
+  IN UINTN    Device,
+  IN UINTN    Function
+  )
+{
+  UINT32  RequesterId;
+  INT32   LutIndex;
+  INT32   StreamId;
+
+  if (!FeaturePcdGet (PcdPcieStreamIdMappingEnable)) {
+    return EFI_UNSUPPORTED;
+  }
+
+  RequesterId = (UINT32)(((Bus & 0xff) << 8) | ((Device & 0x1f) << 3) | (Function & 0x07));
+  if (PcieRequesterIdAlreadyMapped (Segment, RequesterId)) {
+    return EFI_ALREADY_STARTED;
+  }
+
+  LutIndex = PcieNextLutIndex (LsPcie);
+  if (LutIndex < 0) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: no free LUT entry for requester=0x%x\n", RequesterId));
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  StreamId = PcieGetStreamId (LsPcie);
+  if (StreamId < 0) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: no free StreamID for requester=0x%x\n", RequesterId));
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  PcieLutSetMapping (LsPcie, (UINT32)LutIndex, RequesterId, (UINT32)StreamId);
+  RecordPcieStreamIdMapping (
+    Segment,
+    Bus,
+    Device,
+    Function,
+    RequesterId,
+    (UINT32)StreamId,
+    (UINT32)LsPcie->ControllerIndex,
+    (UINT32)LutIndex
+    );
+
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+MapPciIoHandle (
+  IN EFI_HANDLE  Handle,
+  IN LS_PCIE     *LsPcie
+  )
+{
+  EFI_STATUS           Status;
+  EFI_PCI_IO_PROTOCOL  *PciIo;
+  UINTN                Segment;
+  UINTN                Bus;
+  UINTN                Device;
+  UINTN                Function;
+  VOID                 *NonDiscoverable;
+
+  Status = gBS->HandleProtocol (Handle, &gEfiPciIoProtocolGuid, (VOID **)&PciIo);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->HandleProtocol (
+                  Handle,
+                  &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                  &NonDiscoverable
+                  );
+  if (!EFI_ERROR (Status)) {
+    return EFI_UNSUPPORTED;
+  }
+
+  Status = PciIo->GetLocation (PciIo, &Segment, &Bus, &Device, &Function);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  if ((Segment >= NUM_PCIE_CONTROLLER) || (LsPcie[Segment].LsPcieLut == NULL)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "NXP PCIe StreamID: ignoring PCI_IO outside controller range segment=%u BDF=%02x:%02x.%x\n",
+      (UINT32)Segment,
+      (UINT32)Bus,
+      (UINT32)Device,
+      (UINT32)Function
+      ));
+    return EFI_UNSUPPORTED;
+  }
+
+  if ((((Bus & 0xff) << 8) | ((Device & 0x1f) << 3) | (Function & 0x07)) == 0) {
+    return EFI_SUCCESS;
+  }
+
+  Status = MapPcieRequesterId (&LsPcie[Segment], Segment, Bus, Device, Function);
+  if (Status == EFI_ALREADY_STARTED) {
+    return EFI_SUCCESS;
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+EFIAPI
+RefreshPcieStreamIdMap (
+  IN NXP_PCIE_STREAM_ID_MAP_PROTOCOL  *This
+  )
+{
+  EFI_HANDLE  *Handles;
+  EFI_STATUS  Status;
+  EFI_STATUS  ReturnStatus;
+  UINTN       HandleCount;
+  UINTN       Index;
+
+  if ((This == NULL) || !FeaturePcdGet (PcdPcieStreamIdMappingEnable)) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Handles = NULL;
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEfiPciIoProtocolGuid,
+                  NULL,
+                  &HandleCount,
+                  &Handles
+                  );
+  if (Status == EFI_NOT_FOUND) {
+    DEBUG ((DEBUG_INFO, "NXP PCIe StreamID: no PCI_IO handles to refresh\n"));
+    return EFI_SUCCESS;
+  }
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: failed to locate PCI_IO handles: %r\n", Status));
+    return Status;
+  }
+
+  ReturnStatus = EFI_SUCCESS;
+  for (Index = 0; Index < HandleCount; Index++) {
+    Status = MapPciIoHandle (Handles[Index], mLsPcie);
+    if (EFI_ERROR (Status) &&
+        (Status != EFI_UNSUPPORTED) &&
+        (ReturnStatus == EFI_SUCCESS))
+    {
+      ReturnStatus = Status;
+    }
+  }
+
+  FreePool (Handles);
+  DEBUG ((
+    DEBUG_INFO,
+    "NXP PCIe StreamID: refreshed PCI_IO handles=%u mappings=%u status=%r\n",
+    (UINT32)HandleCount,
+    mPcieStreamIdMapProtocol.MappingCount,
+    ReturnStatus
+    ));
+
+  return ReturnStatus;
+}
+
+STATIC
+VOID
+EFIAPI
+OnPciIoProtocolNotify (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_HANDLE           Handle;
+  EFI_STATUS           Status;
+  UINTN                BufferSize;
+  LS_PCIE              *LsPcie;
+
+  (VOID)Event;
+  LsPcie = Context;
+
+  for (;;) {
+    BufferSize = sizeof (Handle);
+    Status = gBS->LocateHandle (
+                    ByRegisterNotify,
+                    NULL,
+                    mPciIoNotifyRegistration,
+                    &BufferSize,
+                    &Handle
+                    );
+    if (Status == EFI_NOT_FOUND) {
+      break;
+    }
+
+    if (EFI_ERROR (Status)) {
+      continue;
+    }
+
+    (VOID)MapPciIoHandle (Handle, LsPcie);
+  }
+}
+
+STATIC
+VOID
+RegisterPciIoProtocolNotify (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+
+  if (!FeaturePcdGet (PcdPcieStreamIdMappingEnable) || (mPciIoNotifyEvent != NULL)) {
+    return;
+  }
+
+  Status = gBS->CreateEvent (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_CALLBACK,
+                  OnPciIoProtocolNotify,
+                  mLsPcie,
+                  &mPciIoNotifyEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: failed to create PCI_IO notify event: %r\n", Status));
+    return;
+  }
+
+  Status = gBS->RegisterProtocolNotify (
+                  &gEfiPciIoProtocolGuid,
+                  mPciIoNotifyEvent,
+                  &mPciIoNotifyRegistration
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "NXP PCIe StreamID: failed to register PCI_IO notify: %r\n", Status));
+    gBS->CloseEvent (mPciIoNotifyEvent);
+    mPciIoNotifyEvent = NULL;
+    return;
+  }
+
+  DEBUG ((DEBUG_INFO, "NXP PCIe StreamID: registered PCI_IO notify\n"));
+  (VOID)RefreshPcieStreamIdMap (&mPcieStreamIdMapProtocol);
+}
+
+STATIC
+UINT64
+FdtReadAddressCellPair (
+  IN CONST UINT32  *Cells
+  )
+{
+  return LShiftU64 ((UINT64)Fdt32ToCpu (Cells[0]), 32) | Fdt32ToCpu (Cells[1]);
+}
+
+STATIC
+INT32
+FindFdtPcieNodeByAddress (
+  IN VOID                  *Dtb,
+  IN EFI_PHYSICAL_ADDRESS  ControllerAddress
+  )
+{
+  CONST UINT32  *Reg;
+  UINT64        NodeBase;
+  INT32         NodeOffset;
+  INT32         RegLength;
+
+  for (NodeOffset = FdtNodeOffsetByCompatible (Dtb, -1, NXP_PCIE_FDT_COMPATIBLE);
+       NodeOffset >= 0;
+       NodeOffset = FdtNodeOffsetByCompatible (Dtb, NodeOffset, NXP_PCIE_FDT_COMPATIBLE))
+  {
+    Reg = FdtGetProp (Dtb, NodeOffset, "reg", &RegLength);
+    if ((Reg == NULL) || (RegLength < (INT32)(4 * sizeof (UINT32)))) {
+      continue;
+    }
+
+    NodeBase = FdtReadAddressCellPair (Reg);
+    if (NodeBase == ControllerAddress) {
+      return NodeOffset;
+    }
+  }
+
+  return -FDT_ERR_NOTFOUND;
+}
+
+STATIC
+VOID
+PatchFdtPcieStatus (
+  IN VOID                  *Dtb,
+  IN EFI_PHYSICAL_ADDRESS  ControllerAddress,
+  IN UINTN                 ControllerIndex,
+  IN BOOLEAN               Enabled
+  )
+{
+  INT32  FdtStatus;
+  INT32  NodeOffset;
+
+  if (Dtb == NULL) {
+    return;
+  }
+
+  NodeOffset = FindFdtPcieNodeByAddress (Dtb, ControllerAddress);
+  if (NodeOffset < 0) {
+    DEBUG ((
+      DEBUG_WARN,
+      "NXP PCIe FDT: no node for PCIE%d DBI=0x%lx\n",
+      (UINT32)ControllerIndex + 1,
+      ControllerAddress
+      ));
+    return;
+  }
+
+  FdtStatus = FdtSetPropString (
+                Dtb,
+                NodeOffset,
+                "status",
+                Enabled ? "okay" : "disabled"
+                );
+  if (FdtStatus != 0) {
+    DEBUG ((
+      DEBUG_WARN,
+      "NXP PCIe FDT: failed to set PCIE%d status=%a: %a\n",
+      (UINT32)ControllerIndex + 1,
+      Enabled ? "okay" : "disabled",
+      FdtStrerror (FdtStatus)
+      ));
+    return;
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "NXP PCIe FDT: PCIE%d status=%a\n",
+    (UINT32)ControllerIndex + 1,
+    Enabled ? "okay" : "disabled"
+    ));
+}
 
 
 /**
@@ -826,10 +1413,25 @@ PciHostBridgeGetRootBridges (
   UINT64        PciPhyCfg1Addr[NUM_PCIE_CONTROLLER];
   UINT64        PciPhyIoAddr[NUM_PCIE_CONTROLLER];
   UINT64        Regs[NUM_PCIE_CONTROLLER];
+  EFI_STATUS    Status;
+  VOID          *Dtb;
+  INT32         FdtStatus;
   INTN          LinkUp;
+  BOOLEAN       SerDesEnabled;
 
   DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: enter NUM_PCIE_CONTROLLER=%u\n", (UINT32)NUM_PCIE_CONTROLLER));
   *Count = 0;
+  PreparePcieStreamIdMapping ();
+
+  Dtb = NULL;
+  Status = EfiGetSystemConfigurationTable (&gFdtTableGuid, &Dtb);
+  if (!EFI_ERROR (Status) && (Dtb != NULL)) {
+    FdtStatus = FdtCheckHeader (Dtb);
+    if (FdtStatus != 0) {
+      DEBUG ((DEBUG_WARN, "NXP PCIe FDT: invalid DTB header: %a\n", FdtStrerror (FdtStatus)));
+      Dtb = NULL;
+    }
+  }
 
   for  (Idx = 0, Loop = 0; Idx < NUM_PCIE_CONTROLLER; Idx++) {
     PciPhyMemAddr[Idx] = PCI_SEG0_PHY_MEM_BASE + (PCI_BASE_DIFF * Idx);
@@ -838,6 +1440,7 @@ PciHostBridgeGetRootBridges (
     PciPhyCfg1Addr[Idx] = PCI_SEG0_PHY_CFG1_BASE + (PCI_BASE_DIFF * Idx);
     PciPhyIoAddr [Idx] =  PCI_SEG0_PHY_IO_BASE + (PCI_BASE_DIFF * Idx);
     Regs[Idx] =  PCI_SEG0_DBI_BASE + (PCI_DBI_SIZE_DIFF * Idx);
+    InitializePcieStreamIdState (Idx, Regs[Idx]);
 
     DEBUG ((
       DEBUG_ERROR,
@@ -852,7 +1455,9 @@ PciHostBridgeGetRootBridges (
       ));
 
     // Check is the PCIe controller is enabled
-    if (IsPcieNumEnabled (Idx + 1) == 0) {
+    SerDesEnabled = IsPcieNumEnabled (Idx + 1);
+    PatchFdtPcieStatus (Dtb, Regs[Idx], Idx, SerDesEnabled);
+    if (!SerDesEnabled) {
       DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: PCIE%d rejected by serdes gate reg=0x%lx\n", Idx + 1, Regs[Idx]));
       continue;
     }
@@ -905,6 +1510,14 @@ PciHostBridgeGetRootBridges (
     mPciRootBridges[Loop].PMemAbove4G.Base      = MAX_UINT64;
     mPciRootBridges[Loop].PMemAbove4G.Limit     = 0;
     mPciRootBridges[Loop].DevicePath            = (EFI_DEVICE_PATH_PROTOCOL *)&mEfiPciRootBridgeDevicePath[Idx];
+
+    //
+    // Match the old qoriq flow by assigning a StreamID/LUT entry to the root
+    // requester immediately. Endpoint Requester IDs are programmed from PCI_IO
+    // protocol notifications and from the explicit refresh before IORT install.
+    //
+    (VOID)MapPcieRequesterId (&mLsPcie[Idx], Idx, 0, 0, 0);
+
     Loop++;
   }
 
@@ -914,6 +1527,10 @@ PciHostBridgeGetRootBridges (
   }
 
   DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: published root bridge count=%u\n", (UINT32)Loop));
+  mPcieStreamIdMapProtocol.Refresh = RefreshPcieStreamIdMap;
+  (VOID)InstallPcieStreamIdMapProtocol ();
+  RegisterPciIoProtocolNotify ();
+
   *Count = Loop;
   return mPciRootBridges;
 }

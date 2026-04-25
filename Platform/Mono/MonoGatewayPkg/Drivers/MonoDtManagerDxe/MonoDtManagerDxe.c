@@ -37,6 +37,8 @@
 #define MONO_DT_MONO_GATEWAY_DK_SDK_FILE_GUID \
   { 0x4b0eb03f, 0x5585, 0x4fb5, { 0xae, 0xbe, 0x0f, 0xc6, 0x34, 0x45, 0x9d, 0x21 } }
 
+#define MONO_DTB_FIXUP_SLACK  0x4000
+
 STATIC EFI_GUID mMonoDtManagerAppFileGuid = MONO_DT_MANAGER_APP_FILE_GUID;
 STATIC VOID     *mVariableWriteArchRegistration;
 STATIC EFI_EVENT mVariableWriteArchEvent;
@@ -180,7 +182,9 @@ InstallEmbeddedDtb (
   VOID                 *RawDtb;
   UINTN                RawDtbSize;
   EFI_PHYSICAL_ADDRESS RuntimeBase;
+  UINTN                RuntimeDtbSize;
   UINTN                RuntimePages;
+  INT32                FdtStatus;
 
   Status = LoadEmbeddedDtb (Index, &RawDtb, &RawDtbSize);
   if (EFI_ERROR (Status)) {
@@ -194,7 +198,9 @@ InstallEmbeddedDtb (
   }
 
   RuntimeBase  = 0;
-  RuntimePages = EFI_SIZE_TO_PAGES (RawDtbSize);
+  RuntimeDtbSize = (UINTN)FdtTotalSize (RawDtb) + MONO_DTB_FIXUP_SLACK;
+  RuntimePages = EFI_SIZE_TO_PAGES (RuntimeDtbSize);
+  RuntimeDtbSize = RuntimePages * EFI_PAGE_SIZE;
   Status = gBS->AllocatePages (
                   AllocateAnyPages,
                   EfiRuntimeServicesData,
@@ -206,8 +212,12 @@ InstallEmbeddedDtb (
     return Status;
   }
 
-  CopyMem ((VOID *)(UINTN)RuntimeBase, RawDtb, RawDtbSize);
+  FdtStatus = FdtOpenInto (RawDtb, (VOID *)(UINTN)RuntimeBase, (INT32)RuntimeDtbSize);
   FreePool (RawDtb);
+  if (FdtStatus != 0) {
+    gBS->FreePages (RuntimeBase, RuntimePages);
+    return EFI_DEVICE_ERROR;
+  }
 
   Status = gBS->InstallConfigurationTable (
                   &gFdtTableGuid,

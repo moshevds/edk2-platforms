@@ -25,21 +25,37 @@
 [LibraryClasses]
   DebugLib
   DevicePathLib
+  FdtLib
   IoAccessLib
+  IoLib
   MemoryAllocationLib
   PcdLib
   SocLib
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEdkiiNonDiscoverableDeviceProtocolGuid
+  gEfiPciIoProtocolGuid
+  gNxpPcieStreamIdMapProtocolGuid
+
+[Guids]
+  gFdtTableGuid
 
 [FeaturePcd]
   gNxpQoriqLsTokenSpaceGuid.PcdPciLutBigEndian
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdMappingEnable
 
 [FixedPcd]
   gNxpQoriqLsTokenSpaceGuid.PcdPciExp1BaseAddr
   gNxpQoriqLsTokenSpaceGuid.PcdNumPciController
   gNxpQoriqLsTokenSpaceGuid.PcdPcieLutBase
   gNxpQoriqLsTokenSpaceGuid.PcdPcieLutDbg
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdEnd
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdStart
 
 [Pcd]
   gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable
   gNxpQoriqLsTokenSpaceGuid.PcdPciLsGen4Ctrl
   gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort
+  gNxpQoriqLsTokenSpaceGuid.PcdPciStreamIdPerCtrl

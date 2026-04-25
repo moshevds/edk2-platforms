@@ -23,6 +23,9 @@
   ##  @libraryclass  Provides SoC clock frequencies to other modules
   SocClockLib|Include/Library/SocClockLib.h
 
+  ##  @libraryclass  Provides SoC-specific services to other modules
+  SocLib|Include/Library/SocLib.h
+
   ##  @libraryclass  Provides services to read/write to I2c devices
   I2cLib|Include/Library/I2cLib.h
 
@@ -37,6 +40,7 @@
 
 [Protocols.common]
   gNxpCaamReadyProtocolGuid = { 0x30ae2513, 0x6dad, 0x4d4f, { 0x81, 0x80, 0x9d, 0x5d, 0xe2, 0x6c, 0x2b, 0x0a } }
+  gNxpPcieStreamIdMapProtocolGuid = { 0xafd67008, 0xf3bb, 0x495f, { 0xa3, 0x15, 0xea, 0x8a, 0x3f, 0x67, 0x4c, 0x5b } }
 
 [PcdsFeatureFlag]
   gNxpQoriqLsTokenSpaceGuid.PcdI2cErratumA009203|FALSE|BOOLEAN|0x00000315
@@ -45,6 +49,7 @@
   gNxpQoriqLsTokenSpaceGuid.PcdSataErratumA009185|FALSE|BOOLEAN|0x00000318
   gNxpQoriqLsTokenSpaceGuid.PcdGpioControllerBigEndian|FALSE|BOOLEAN|0x00000319
   gNxpQoriqLsTokenSpaceGuid.PcdScfgBigEndian|FALSE|BOOLEAN|0x00000320
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdMappingEnable|FALSE|BOOLEAN|0x00000321
 
 [PcdsFixedAtBuild.common]
   # Pcds for base SoC blocks
@@ -58,6 +63,9 @@
   gNxpQoriqLsTokenSpaceGuid.PcdPcieLutBase|0x0|UINT32|0x00000502
   gNxpQoriqLsTokenSpaceGuid.PcdPcieLutDbg|0x0|UINT32|0x00000503
   gNxpQoriqLsTokenSpaceGuid.PcdSerDesLanes|0x0|UINT8|0x00000504
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdStart|0x0|UINT32|0x00000505
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdEnd|0x0|UINT32|0x00000506
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieTbuMask|0x0|UINT16|0x00000507
 
   # Pcds for USB
   gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x0|UINT64|0x00000510
@@ -92,5 +100,4 @@
   gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable|FALSE|BOOLEAN|0x00000600
   gNxpQoriqLsTokenSpaceGuid.PcdPciLsGen4Ctrl|FALSE|BOOLEAN|0x00000601
   gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort|FALSE|BOOLEAN|0x00000602
-
-[PcdsFeatureFlag]
+  gNxpQoriqLsTokenSpaceGuid.PcdPciStreamIdPerCtrl|FALSE|BOOLEAN|0x00000605

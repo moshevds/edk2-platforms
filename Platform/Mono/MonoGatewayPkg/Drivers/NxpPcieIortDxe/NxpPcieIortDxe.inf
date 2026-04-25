@@ -1,0 +1,49 @@
+## @file
+#  NXP PCIe IORT installer for Mono Gateway.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = NxpPcieIortDxe
+  FILE_GUID                      = 3595c98c-9c87-45ff-b3a3-bbc593af2814
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = NxpPcieIortDxeInitialize
+
+[Sources]
+  NxpPcieIortDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  FdtLib
+  MemoryAllocationLib
+  PcdLib
+  SocLib
+  UefiBootServicesTableLib
+  UefiLib
+  UefiDriverEntryPoint
+
+[Protocols]
+  gEfiAcpiTableProtocolGuid
+  gNxpPcieStreamIdMapProtocolGuid
+  gEfiPciRootBridgeIoProtocolGuid
+
+[Guids]
+  gEfiEventReadyToBootGuid
+  gFdtTableGuid
+
+[FixedPcd]
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieTbuMask
+
+[Depex]
+  TRUE

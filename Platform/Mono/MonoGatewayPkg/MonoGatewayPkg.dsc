@@ -82,12 +82,21 @@
   gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|1
   gNxpQoriqLsTokenSpaceGuid.PcdNumPciController|3
   gNxpQoriqLsTokenSpaceGuid.PcdPciExp1BaseAddr|0x4000000000
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieLutBase|0x80000
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieLutDbg|0x407FC
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdStart|11
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdEnd|26
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieTbuMask|0x400
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase|0x09FE800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize|0x00800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase|0x09FC000000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrSize|0x02000000
   gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase|0x09FF000000
   gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprSize|0x01000000
+
+[PcdsFeatureFlag.common]
+  gNxpQoriqLsTokenSpaceGuid.PcdPciLutBigEndian|TRUE
+  gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdMappingEnable|TRUE
 
 [Components.common]
   Platform/Mono/MonoGatewayPkg/Drivers/AcpiDebugDxe/AcpiDebugDxe.inf
@@ -146,6 +155,7 @@
   Platform/Mono/MonoGatewayPkg/Acpi/ConfigurationManagerDxe/ConfigurationManagerDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
   MdeModulePkg/Universal/Acpi/AcpiTableDxe/AcpiTableDxe.inf
+  Platform/Mono/MonoGatewayPkg/Drivers/NxpPcieIortDxe/NxpPcieIortDxe.inf
   MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
   Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
@@ -157,6 +167,7 @@
   # PCIe config space.
   gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable|TRUE
   gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort|TRUE
+  gNxpQoriqLsTokenSpaceGuid.PcdPciStreamIdPerCtrl|FALSE
 
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageVariableBase64|0
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64|0
