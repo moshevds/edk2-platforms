@@ -12,7 +12,7 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Soc.h>
 
-#define MAX_VIRTUAL_MEMORY_MAP_DESCRIPTORS          5
+#define MAX_VIRTUAL_MEMORY_MAP_DESCRIPTORS          8
 
 /**
   Return the Virtual Memory Map of your platform
@@ -64,6 +64,22 @@ ArmPlatformGetVirtualMemoryMap (
   VirtualMemoryTable[Index].PhysicalBase = LS1046A_QSPI0_PHYS_ADDRESS;
   VirtualMemoryTable[Index].VirtualBase  = LS1046A_QSPI0_PHYS_ADDRESS;
   VirtualMemoryTable[Index].Length       = LS1046A_QSPI0_SIZE;
+  VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
+
+  // PCIe controller windows
+  VirtualMemoryTable[Index].PhysicalBase = LS1046A_PCI0_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].VirtualBase  = LS1046A_PCI0_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].Length       = LS1046A_PCI_SIZE;
+  VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
+
+  VirtualMemoryTable[Index].PhysicalBase = LS1046A_PCI1_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].VirtualBase  = LS1046A_PCI1_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].Length       = LS1046A_PCI_SIZE;
+  VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
+
+  VirtualMemoryTable[Index].PhysicalBase = LS1046A_PCI2_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].VirtualBase  = LS1046A_PCI2_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].Length       = LS1046A_PCI_SIZE;
   VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
 
   // End of Table

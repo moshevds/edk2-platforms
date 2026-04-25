@@ -513,6 +513,27 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
         Name (_SUN, MONO_PCIE3_SLOT)
         MONO_DSDT_STA_FLAG (EPC2)
       }
+
+      Device (RES0) {
+        Name (_HID, "PNP0C02")
+        Name (_CRS, ResourceTemplate () {
+          QWordMemory (
+            ResourceProducer, PosDecode,
+            MinFixed, MaxFixed,
+            NonCacheable, ReadWrite,
+            0,
+            MONO_PCIE3_CONFIG_BASE,
+            MONO_PCIE3_CONFIG_LIMIT,
+            0,
+            MONO_PCIE3_CONFIG_SIZE,
+            ,
+            ,
+            ,
+            AddressRangeMemory,
+            TypeStatic
+          )
+        })
+      }
     }
 
 #include "Fman.asl"

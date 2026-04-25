@@ -35,6 +35,8 @@
   ArmPlatformLib|Platform/Mono/MonoGatewayPkg/Library/ArmPlatformLib/ArmPlatformLib.inf
   FpgaLib|Platform/Mono/MonoGatewayPkg/Library/FpgaLib/FpgaLib.inf
   FdtLib|MdePkg/Library/BaseFdtLib/BaseFdtLib.inf
+  PciSegmentLib|Silicon/NXP/Library/PciSegmentLib/PciSegmentLib.inf
+  PciHostBridgeLib|Silicon/NXP/Library/PciHostBridgeLib/PciHostBridgeLib.inf
   RealTimeClockLib|Platform/Mono/MonoGatewayPkg/Library/Pcf2131RtcLib/Pcf2131RtcLib.inf
   SocClockLib|Silicon/NXP/LS1046A/Library/SocClockLib/SocClockLib.inf
   MmcLib|Silicon/NXP/Library/MmcLib/MmcLib.inf
@@ -78,6 +80,8 @@
   gNxpQoriqLsTokenSpaceGuid.PcdUsbBaseAddr|0x02F00000
   gNxpQoriqLsTokenSpaceGuid.PcdUsbSize|0x00100000
   gNxpQoriqLsTokenSpaceGuid.PcdNumUsbController|1
+  gNxpQoriqLsTokenSpaceGuid.PcdNumPciController|3
+  gNxpQoriqLsTokenSpaceGuid.PcdPciExp1BaseAddr|0x4000000000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase|0x09FE800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize|0x00800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase|0x09FC000000
@@ -123,6 +127,10 @@
   Platform/Mono/MonoGatewayPkg/Drivers/EmmcVarStoreDxe/EmmcVarStoreDxe.inf
   Silicon/NXP/Drivers/MmcHostDxe/MmcHostDxe.inf
   EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
+  Silicon/NXP/Drivers/PciCpuIo2Dxe/PciCpuIo2Dxe.inf
+  MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf
+  MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
+  MdeModulePkg/Bus/Pci/NvmExpressDxe/NvmExpressDxe.inf
 
   Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
   SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf {

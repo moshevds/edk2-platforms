@@ -58,6 +58,20 @@ typedef struct {
 #define MONO_GATEWAY_I2C_NUM_CONTROLLERS  4
 #define MONO_GATEWAY_I2C_MUX_ADDRESS      0x70
 #define MONO_GATEWAY_PCA9545_CTRL_REG     0x00
+#define MONO_GATEWAY_I2C_BASE(Controller) \
+  (MONO_GATEWAY_I2C0_PHYS_ADDRESS + ((Controller) * MONO_GATEWAY_I2C_SIZE))
+#define MONO_GATEWAY_I2C2_PHYS_ADDRESS    MONO_GATEWAY_I2C_BASE (2)
+#define MONO_GATEWAY_PCA9545_CHANNEL(Channel)  (1U << (Channel))
+#define MONO_GATEWAY_RETIMER_MUX_CHANNEL       0
+#define MONO_GATEWAY_RETIMER_ADDRESS           0x18
+#define MONO_GATEWAY_RETIMER_DEVICE_ID_REG     0x01
+#define MONO_GATEWAY_RETIMER_EXPECTED_ID       0xD0
+#define MONO_GATEWAY_CLOCKGEN_ADDRESS          0x69
+#define MONO_GATEWAY_CLOCKGEN_SLEW_RATE2_REG   0x04
+#define MONO_GATEWAY_CLOCKGEN_REV_VENDOR_REG   0x07
+#define MONO_GATEWAY_CLOCKGEN_EXPECTED_ID      0x11
+#define MONO_GATEWAY_INA234_MFG_ID_REG         0x3E
+#define MONO_GATEWAY_INA234_DEVICE_ID_REG      0x3F
 
 #define MONO_GATEWAY_FMAN_PHYS_ADDRESS        0x1A00000
 #define MONO_GATEWAY_FMAN_SIZE                0x100000
@@ -98,6 +112,10 @@ STATIC CAAM_DESCRIPTOR_SET      mCaamDesc;
 STATIC EFI_EVENT                mMonoI2c0MuxNotifyEvent;
 STATIC VOID                     *mMonoI2c0MuxNotifyRegistration;
 STATIC BOOLEAN                  mMonoI2c0MuxResetDone;
+STATIC BOOLEAN                  mMonoPcieSidebandDiagnosticsStarted;
+STATIC BOOLEAN                  mMonoPcieSidebandDiagnosticsDone;
+STATIC BOOLEAN                  mMonoPcieI2c0DiagnosticsDone;
+STATIC BOOLEAN                  mMonoPcieI2c2DiagnosticsDone;
 
 #define PLATFORM_INFO(_Fmt, ...) \
   DEBUG ((DEBUG_ERROR, "PlatformDxe: " _Fmt "\n", ##__VA_ARGS__))
@@ -411,6 +429,54 @@ I2cRegRead8 (
 
 STATIC
 EFI_STATUS
+I2cRegReadBuffer (
+  IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN  UINTN                    SlaveAddress,
+  IN  UINT8                    Register,
+  OUT VOID                     *Buffer,
+  IN  UINTN                    Length
+  )
+{
+  return I2cWriteThenRead (
+           I2cMaster,
+           SlaveAddress,
+           &Register,
+           sizeof (Register),
+           Buffer,
+           Length
+           );
+}
+
+STATIC
+EFI_STATUS
+I2cRegRead16 (
+  IN  EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN  UINTN                    SlaveAddress,
+  IN  UINT8                    Register,
+  OUT UINT16                   *Value
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       Buffer[2];
+
+  Status = I2cWriteThenRead (
+             I2cMaster,
+             SlaveAddress,
+             &Register,
+             sizeof (Register),
+             Buffer,
+             sizeof (Buffer)
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  *Value = (UINT16)(((UINT16)Buffer[0] << 8) | Buffer[1]);
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
 I2cRegWrite8 (
   IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
   IN UINTN                    SlaveAddress,
@@ -423,6 +489,266 @@ I2cRegWrite8 (
   Packet[0] = Register;
   Packet[1] = Value;
   return I2cWrite (I2cMaster, SlaveAddress, Packet, sizeof (Packet));
+}
+
+STATIC
+EFI_STATUS
+SelectMonoI2cMuxChannel (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN CONST CHAR8              *MuxName,
+  IN UINT8                    ChannelMask
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       CtrlValue;
+
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             MONO_GATEWAY_PCA9545_CTRL_REG,
+             ChannelMask
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("PCIe sideband: %a mux select 0x%02x failed: %r", MuxName, ChannelMask, Status);
+    return Status;
+  }
+
+  Status = I2cRegRead8 (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             MONO_GATEWAY_PCA9545_CTRL_REG,
+             &CtrlValue
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("PCIe sideband: %a mux readback failed after select 0x%02x: %r", MuxName, ChannelMask, Status);
+    return Status;
+  }
+
+  PLATFORM_INFO ("PCIe sideband: %a mux ctrl=0x%02x after select 0x%02x", MuxName, CtrlValue, ChannelMask);
+  return EFI_SUCCESS;
+}
+
+STATIC
+VOID
+LogI2cReg8Probe (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN CONST CHAR8              *Label,
+  IN UINTN                    SlaveAddress,
+  IN UINT8                    Register
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       Value;
+
+  Status = I2cRegRead8 (I2cMaster, SlaveAddress, Register, &Value);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN (
+      "PCIe sideband: %a addr=0x%02x reg=0x%02x read failed: %r",
+      Label,
+      (UINT32)SlaveAddress,
+      Register,
+      Status
+      );
+    return;
+  }
+
+  PLATFORM_INFO (
+    "PCIe sideband: %a addr=0x%02x reg=0x%02x value=0x%02x",
+    Label,
+    (UINT32)SlaveAddress,
+    Register,
+    Value
+    );
+}
+
+STATIC
+VOID
+LogI2cReg8ExpectedProbe (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN CONST CHAR8              *Label,
+  IN UINTN                    SlaveAddress,
+  IN UINT8                    Register,
+  IN UINT8                    Expected
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       Value;
+
+  Status = I2cRegRead8 (I2cMaster, SlaveAddress, Register, &Value);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN (
+      "PCIe sideband: %a addr=0x%02x reg=0x%02x read failed: %r",
+      Label,
+      (UINT32)SlaveAddress,
+      Register,
+      Status
+      );
+    return;
+  }
+
+  PLATFORM_INFO (
+    "PCIe sideband: %a addr=0x%02x reg=0x%02x value=0x%02x expected=0x%02x",
+    Label,
+    (UINT32)SlaveAddress,
+    Register,
+    Value,
+    Expected
+    );
+}
+
+STATIC
+VOID
+LogClockGeneratorStatus (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       Buffer[16];
+  UINT8       DeviceId;
+  UINT8       CcbFreqBits;
+
+  Status = I2cRegReadBuffer (
+             I2cMaster,
+             MONO_GATEWAY_CLOCKGEN_ADDRESS,
+             0x00,
+             Buffer,
+             sizeof (Buffer)
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("PCIe sideband: clock generator addr=0x%02x read failed: %r", MONO_GATEWAY_CLOCKGEN_ADDRESS, Status);
+    return;
+  }
+
+  DeviceId = Buffer[MONO_GATEWAY_CLOCKGEN_REV_VENDOR_REG + 1];
+  CcbFreqBits = (UINT8)((Buffer[MONO_GATEWAY_CLOCKGEN_SLEW_RATE2_REG + 1] >> 2) & 0x03);
+
+  PLATFORM_INFO (
+    "PCIe sideband: clock generator addr=0x%02x device-id=0x%02x expected=0x%02x sys-ccb-bits=%u",
+    MONO_GATEWAY_CLOCKGEN_ADDRESS,
+    DeviceId,
+    MONO_GATEWAY_CLOCKGEN_EXPECTED_ID,
+    CcbFreqBits
+    );
+}
+
+STATIC
+VOID
+LogIna234Identity (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
+  IN CONST CHAR8              *Label,
+  IN UINTN                    SlaveAddress
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      ManufacturerId;
+  UINT16      DeviceId;
+
+  Status = I2cRegRead16 (
+             I2cMaster,
+             SlaveAddress,
+             MONO_GATEWAY_INA234_MFG_ID_REG,
+             &ManufacturerId
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("PCIe sideband: %a power monitor addr=0x%02x manufacturer-id read failed: %r", Label, (UINT32)SlaveAddress, Status);
+    return;
+  }
+
+  Status = I2cRegRead16 (
+             I2cMaster,
+             SlaveAddress,
+             MONO_GATEWAY_INA234_DEVICE_ID_REG,
+             &DeviceId
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("PCIe sideband: %a power monitor addr=0x%02x device-id read failed: %r", Label, (UINT32)SlaveAddress, Status);
+    return;
+  }
+
+  PLATFORM_INFO (
+    "PCIe sideband: %a power monitor addr=0x%02x mfg=0x%04x dev=0x%04x",
+    Label,
+    (UINT32)SlaveAddress,
+    ManufacturerId,
+    DeviceId
+    );
+}
+
+STATIC
+VOID
+RunMonoPcieSidebandDiagnostics (
+  VOID
+  )
+{
+  EFI_I2C_MASTER_PROTOCOL  *I2cMaster;
+  EFI_STATUS               Status;
+  UINT8                    CtrlValue;
+
+  if (mMonoPcieSidebandDiagnosticsDone) {
+    return;
+  }
+
+  if (!mMonoPcieSidebandDiagnosticsStarted) {
+    PLATFORM_INFO ("PCIe sideband: M.2 PERST#/slot-power GPIO mapping is not present in firmware DT/ACPI; probing visible I2C sideband only");
+    mMonoPcieSidebandDiagnosticsStarted = TRUE;
+  }
+
+  if (!mMonoPcieI2c0DiagnosticsDone) {
+    Status = GetI2cMasterForBase (MONO_GATEWAY_I2C0_PHYS_ADDRESS, &I2cMaster);
+    if (EFI_ERROR (Status)) {
+      PLATFORM_WARN ("PCIe sideband: waiting for i2c0 master for retimer/clockgen probe: %r", Status);
+    } else {
+      Status = I2cRegRead8 (
+                 I2cMaster,
+                 MONO_GATEWAY_I2C_MUX_ADDRESS,
+                 MONO_GATEWAY_PCA9545_CTRL_REG,
+                 &CtrlValue
+                 );
+      if (EFI_ERROR (Status)) {
+        PLATFORM_WARN ("PCIe sideband: i2c0 mux initial read failed: %r", Status);
+      } else {
+        PLATFORM_INFO ("PCIe sideband: i2c0 mux initial ctrl=0x%02x", CtrlValue);
+      }
+
+      Status = SelectMonoI2cMuxChannel (
+                 I2cMaster,
+                 "i2c0",
+                 MONO_GATEWAY_PCA9545_CHANNEL (MONO_GATEWAY_RETIMER_MUX_CHANNEL)
+                 );
+      if (!EFI_ERROR (Status)) {
+        LogI2cReg8Probe (I2cMaster, "DS100DF410 retimer", MONO_GATEWAY_RETIMER_ADDRESS, 0x00);
+        LogI2cReg8ExpectedProbe (
+          I2cMaster,
+          "DS100DF410 retimer",
+          MONO_GATEWAY_RETIMER_ADDRESS,
+          MONO_GATEWAY_RETIMER_DEVICE_ID_REG,
+          MONO_GATEWAY_RETIMER_EXPECTED_ID
+          );
+        LogClockGeneratorStatus (I2cMaster);
+      }
+
+      SelectMonoI2cMuxChannel (I2cMaster, "i2c0", 0x00);
+      mMonoPcieI2c0DiagnosticsDone = TRUE;
+    }
+  }
+
+  if (!mMonoPcieI2c2DiagnosticsDone) {
+    Status = GetI2cMasterForBase (MONO_GATEWAY_I2C2_PHYS_ADDRESS, &I2cMaster);
+    if (EFI_ERROR (Status)) {
+      PLATFORM_WARN ("PCIe sideband: waiting for i2c2 master for power-monitor probe: %r", Status);
+    } else {
+      Status = SelectMonoI2cMuxChannel (I2cMaster, "i2c2", MONO_GATEWAY_PCA9545_CHANNEL (1));
+      if (!EFI_ERROR (Status)) {
+        LogIna234Identity (I2cMaster, "1.35V SerDes PSU", 0x40);
+        LogIna234Identity (I2cMaster, "3.3V PSU", 0x43);
+      }
+
+      SelectMonoI2cMuxChannel (I2cMaster, "i2c2", 0x00);
+      mMonoPcieI2c2DiagnosticsDone = TRUE;
+    }
+  }
+
+  mMonoPcieSidebandDiagnosticsDone = (BOOLEAN)(mMonoPcieI2c0DiagnosticsDone && mMonoPcieI2c2DiagnosticsDone);
 }
 
 STATIC
@@ -480,12 +806,21 @@ MonoI2c0MuxNotify (
 {
   EFI_STATUS  Status;
 
-  if (mMonoI2c0MuxResetDone) {
+  if (mMonoI2c0MuxResetDone && mMonoPcieSidebandDiagnosticsDone) {
     return;
   }
 
-  Status = ResetMonoI2c0Mux ();
+  Status = EFI_SUCCESS;
+  if (!mMonoI2c0MuxResetDone) {
+    Status = ResetMonoI2c0Mux ();
+  }
+
+  RunMonoPcieSidebandDiagnostics ();
   if (EFI_ERROR (Status)) {
+    return;
+  }
+
+  if (!mMonoPcieSidebandDiagnosticsDone) {
     return;
   }
 
@@ -504,7 +839,7 @@ RegisterMonoI2c0MuxNotify (
 {
   EFI_STATUS  Status;
 
-  if (mMonoI2c0MuxResetDone) {
+  if (mMonoI2c0MuxResetDone && mMonoPcieSidebandDiagnosticsDone) {
     return EFI_SUCCESS;
   }
 

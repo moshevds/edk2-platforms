@@ -35,7 +35,7 @@
 #define ECAM_BUS_SIZE             SIZE_1MB
 #define ECAM_CFG_REGION_SIZE      SIZE_256MB
 #define SEG_MEM_BASE              0x40000000
-#define SEG_MEM_SIZE              0xC0000000
+#define SEG_MEM_SIZE              0x40000000
 #define SEG_MEM_LIMIT             (SEG_MEM_BASE + (SEG_MEM_SIZE -1))
 #define SEG_IO_BASE               0x10000000
 #define SEG_MEM64_BASE            0x400000000

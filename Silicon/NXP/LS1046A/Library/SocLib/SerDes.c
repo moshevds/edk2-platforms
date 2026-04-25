@@ -19,6 +19,12 @@
 // SerDes1 Protocol Shift in Reset Configuration Word (RCW) Status Register
 #define SERDES1_PROTOCOL_SHIFT     16
 
+// SerDes2 Protocol Mask in Reset Configuration Word (RCW) Status Register
+#define SERDES2_PROTOCOL_MASK      0x0000ffff
+
+// SerDes2 Protocol Shift in Reset Configuration Word (RCW) Status Register
+#define SERDES2_PROTOCOL_SHIFT     0
+
 STATIC SERDES_CONFIG mSerDes1ConfigTable[] = {
   {0x1555, {XFI_FM1_MAC9, PCIE1, PCIE2, PCIE3 } },
   {0x2555, {SGMII_2500_FM1_DTSEC9, PCIE1, PCIE2, PCIE3 } },
@@ -95,13 +101,26 @@ GetSerDesProtocolMap (
   )
 {
   UINT32                 SerDesProtocol;
+  UINT32                 RawRcw4;
+  UINT32                 SerDes1Protocol;
+  UINT32                 SerDes2Protocol;
   LS1046A_DEVICE_CONFIG  *DeviceConfig;
   EFI_STATUS             Status;
 
   *SerDesProtocolMap = 0;
   DeviceConfig = (LS1046A_DEVICE_CONFIG  *)LS1046A_DCFG_ADDRESS;
-  SerDesProtocol = DcfgRead32 ((UINTN)&DeviceConfig->RcwSr[4]) & SERDES1_PROTOCOL_MASK;
-  SerDesProtocol >>= SERDES1_PROTOCOL_SHIFT;
+  RawRcw4 = DcfgRead32 ((UINTN)&DeviceConfig->RcwSr[4]);
+  SerDes1Protocol = (RawRcw4 & SERDES1_PROTOCOL_MASK) >> SERDES1_PROTOCOL_SHIFT;
+  SerDes2Protocol = (RawRcw4 & SERDES2_PROTOCOL_MASK) >> SERDES2_PROTOCOL_SHIFT;
+  SerDesProtocol = SerDes1Protocol;
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "LS1046A SerDes: RCWSR4=0x%08x SerDes1=0x%04x SerDes2=0x%04x\n",
+    RawRcw4,
+    SerDes1Protocol,
+    SerDes2Protocol
+    ));
 
   Status = GetSerDesMap (
              SERDES_1,
@@ -115,5 +134,11 @@ GetSerDesProtocolMap (
   if (Status != EFI_SUCCESS) {
     DEBUG ((DEBUG_ERROR, "%a: failed for SerDes1 \n",__func__));
     *SerDesProtocolMap = 0;
+  } else {
+    DEBUG ((
+      DEBUG_ERROR,
+      "LS1046A SerDes: protocol-map=0x%Lx (SerDes1 only)\n",
+      *SerDesProtocolMap
+      ));
   }
 }

@@ -10,8 +10,110 @@
 #include <Base.h>
 #include <Library/ChassisLib.h>
 #include <Library/DebugLib.h>
+#include <Library/SerDes.h>
 #include <Library/SocLib.h>
+#include <SocSerDes.h>
 #include <Soc.h>
+
+#define LS1046A_SERDES1_PROTOCOL_MASK   0xffff0000
+#define LS1046A_SERDES1_PROTOCOL_SHIFT  16
+#define LS1046A_SERDES2_PROTOCOL_MASK   0x0000ffff
+#define LS1046A_SERDES2_PROTOCOL_SHIFT  0
+#define LS1046A_SERDES_LANES            4
+
+typedef struct {
+  UINT32           Protocol;
+  SERDES_PROTOCOL  Lanes[LS1046A_SERDES_LANES];
+} LS1046A_SERDES_CONFIG;
+
+STATIC CONST LS1046A_SERDES_CONFIG mLs1046aSerDes1ConfigTable[] = {
+  {0x3333, {SGMII_FM1_DTSEC9, SGMII_FM1_DTSEC10, SGMII_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x1133, {XFI_FM1_MAC9, XFI_FM1_MAC10, SGMII_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x1333, {XFI_FM1_MAC9, SGMII_FM1_DTSEC10, SGMII_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x2333, {SGMII_2500_FM1_DTSEC9, SGMII_FM1_DTSEC10, SGMII_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x2233, {SGMII_2500_FM1_DTSEC9, SGMII_2500_FM1_DTSEC10, SGMII_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x1040, {XFI_FM1_MAC9, NONE, QSGMII_FM1_A, NONE } },
+  {0x2040, {SGMII_2500_FM1_DTSEC9, NONE, QSGMII_FM1_A, NONE } },
+  {0x1163, {XFI_FM1_MAC9, XFI_FM1_MAC10, PCIE1, SGMII_FM1_DTSEC6 } },
+  {0x2263, {SGMII_2500_FM1_DTSEC9, SGMII_2500_FM1_DTSEC10, PCIE1, SGMII_FM1_DTSEC6 } },
+  {0x3363, {SGMII_FM1_DTSEC9, SGMII_FM1_DTSEC10, PCIE1, SGMII_FM1_DTSEC6 } },
+  {0x2223, {SGMII_2500_FM1_DTSEC9, SGMII_2500_FM1_DTSEC10, SGMII_2500_FM1_DTSEC5, SGMII_FM1_DTSEC6 } },
+  {0x3040, {SGMII_FM1_DTSEC9, NONE, QSGMII_FM1_A, NONE } },
+  {0}
+};
+
+STATIC CONST LS1046A_SERDES_CONFIG mLs1046aSerDes2ConfigTable[] = {
+  {0x7777, {PCIE1, PCIE1, PCIE3, PCIE3 } },
+  {0x8888, {PCIE1, PCIE1, PCIE1, PCIE1 } },
+  {0x5559, {PCIE1, PCIE2, PCIE3, SATA } },
+  {0x5577, {PCIE1, PCIE2, PCIE3, PCIE3 } },
+  {0x5506, {PCIE1, PCIE2, NONE, PCIE3 } },
+  {0x0506, {NONE, PCIE2, NONE, PCIE3 } },
+  {0x0559, {NONE, PCIE2, PCIE3, SATA } },
+  {0x5A59, {PCIE1, SGMII_FM1_DTSEC2, PCIE3, SATA } },
+  {0x5A06, {PCIE1, SGMII_FM1_DTSEC2, NONE, PCIE3 } },
+  {0}
+};
+
+STATIC
+VOID
+AddSerDesProtocolsToMap (
+  IN     CONST LS1046A_SERDES_CONFIG  *Table,
+  IN     UINT32                       Protocol,
+  IN OUT UINT64                       *SerDesProtocolMap
+  )
+{
+  UINTN  Index;
+  UINTN  Lane;
+
+  for (Index = 0; Table[Index].Protocol != 0; Index++) {
+    if (Table[Index].Protocol != Protocol) {
+      continue;
+    }
+
+    for (Lane = 0; Lane < LS1046A_SERDES_LANES; Lane++) {
+      if (Table[Index].Lanes[Lane] != NONE) {
+        *SerDesProtocolMap |= BIT0 << Table[Index].Lanes[Lane];
+      }
+    }
+
+    return;
+  }
+}
+
+VOID
+GetSerDesProtocolMap (
+  OUT UINT64  *SerDesProtocolMap
+  )
+{
+  LS1046A_DEVICE_CONFIG  *DeviceConfig;
+  UINT32                 RawRcw4;
+  UINT32                 SerDes1Protocol;
+  UINT32                 SerDes2Protocol;
+
+  *SerDesProtocolMap = 0;
+  DeviceConfig = (LS1046A_DEVICE_CONFIG *)LS1046A_DCFG_ADDRESS;
+  RawRcw4 = DcfgRead32 ((UINTN)&DeviceConfig->RcwSr[4]);
+  SerDes1Protocol = (RawRcw4 & LS1046A_SERDES1_PROTOCOL_MASK) >> LS1046A_SERDES1_PROTOCOL_SHIFT;
+  SerDes2Protocol = (RawRcw4 & LS1046A_SERDES2_PROTOCOL_MASK) >> LS1046A_SERDES2_PROTOCOL_SHIFT;
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "LS1046A SerDes: RCWSR4=0x%08x SerDes1=0x%04x SerDes2=0x%04x\n",
+    RawRcw4,
+    SerDes1Protocol,
+    SerDes2Protocol
+    ));
+
+  AddSerDesProtocolsToMap (mLs1046aSerDes1ConfigTable, SerDes1Protocol, SerDesProtocolMap);
+  AddSerDesProtocolsToMap (mLs1046aSerDes2ConfigTable, SerDes2Protocol, SerDesProtocolMap);
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "LS1046A SerDes: protocol-map=0x%Lx\n",
+    *SerDesProtocolMap
+    ));
+}
 
 /**
   Return the input clock frequency to an IP Module.

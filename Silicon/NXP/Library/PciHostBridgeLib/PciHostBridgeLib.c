@@ -181,6 +181,11 @@ STATIC CHAR16 *mPciHostBridgeLibAcpiAddressSpaceTypeStr[] = {
                                         EFI_PCI_ATTRIBUTE_VGA_IO_16  | \
                                         EFI_PCI_ATTRIBUTE_VGA_PALETTE_IO_16
 
+#define DW_PCIE_PORT_DEBUG0                  0x728
+#define DW_PCIE_PORT_DEBUG1                  0x72C
+#define DW_PCIE_PORT_DEBUG1_LINK_UP          BIT4
+#define DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING BIT29
+
 PCI_ROOT_BRIDGE mPciRootBridges[NUM_PCIE_CONTROLLER];
 
 
@@ -251,8 +256,14 @@ PcieLinkUp (
   )
 {
   MMIO_OPERATIONS *PcieOps;
+  UINT32          LutDbg;
+  UINT32          Debug0;
+  UINT32          Debug1;
   UINT32 State;
   UINT32 LtssmMask;
+  BOOLEAN         DwLinkUp;
+  BOOLEAN         DwTraining;
+  BOOLEAN         LinuxLinkUp;
 
   if (PCI_LS_GEN4_CTRL) {
     LtssmMask = 0x7f;
@@ -261,10 +272,44 @@ PcieLinkUp (
   }
 
   PcieOps = GetMmioOperations (FeaturePcdGet (PcdPciLutBigEndian));
-  State = PcieOps->Read32 ((UINTN)Pcie + PCI_LUT_BASE + PCI_LUT_DBG) & LtssmMask;
+  LutDbg = PcieOps->Read32 ((UINTN)Pcie + PCI_LUT_BASE + PCI_LUT_DBG);
+  State = LutDbg & LtssmMask;
+  Debug0 = MmioRead32 ((UINTN)Pcie + DW_PCIE_PORT_DEBUG0);
+  Debug1 = MmioRead32 ((UINTN)Pcie + DW_PCIE_PORT_DEBUG1);
+  DwLinkUp = (Debug1 & DW_PCIE_PORT_DEBUG1_LINK_UP) != 0;
+  DwTraining = (Debug1 & DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING) != 0;
+  LinuxLinkUp = DwLinkUp && !DwTraining;
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "PCIE%d : reg @ 0x%lx LUT_DBG=0x%08x LTSSM=0x%02x%s\n",
+    Idx + 1,
+    Pcie,
+    LutDbg,
+    State,
+    PCI_LS_GEN4_CTRL ? " (gen4 mask)" : ""
+    ));
+  DEBUG ((
+    DEBUG_ERROR,
+    "PCIE%d : DW_DBG0=0x%08x DW_DBG1=0x%08x dw-link=%a training=%a linux-link=%a\n",
+    Idx + 1,
+    Debug0,
+    Debug1,
+    DwLinkUp ? "yes" : "no",
+    DwTraining ? "yes" : "no",
+    LinuxLinkUp ? "yes" : "no"
+    ));
+
+  if ((State >= LTSSM_PCIE_L0) && !LinuxLinkUp) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "PCIE%d : LTSSM reports >= L0 but the Linux DesignWare link predicate is false\n",
+      Idx + 1
+      ));
+  }
 
   if (State < LTSSM_PCIE_L0) {
-    DEBUG ((DEBUG_INFO,"PCIE%d : reg @ 0x%lx, no link: LTSSM=0x%02x\n",
+    DEBUG ((DEBUG_ERROR,"PCIE%d : reg @ 0x%lx, no link: LTSSM=0x%02x\n",
             Idx + 1, Pcie, State));
     return PCI_LINK_DOWN;
   }
@@ -738,13 +783,24 @@ IsPcieNumEnabled(
   )
 {
   UINT64 SerDesProtocolMap;
+  BOOLEAN Enabled;
 
   SerDesProtocolMap = 0;
 
   // Reading serdes protocol map
   GetSerDesProtocolMap (&SerDesProtocolMap);
 
-  return (SerDesProtocolMap & (BIT0 << (PcieNum))) != 0;
+  Enabled = (SerDesProtocolMap & (BIT0 << (PcieNum))) != 0;
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "PCIE%d : serdes-map=0x%Lx enabled=%a\n",
+    PcieNum,
+    SerDesProtocolMap,
+    Enabled ? "yes" : "no"
+    ));
+
+  return Enabled;
 }
 
 /**
@@ -771,6 +827,9 @@ PciHostBridgeGetRootBridges (
   UINT64        Regs[NUM_PCIE_CONTROLLER];
   INTN          LinkUp;
 
+  DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: enter NUM_PCIE_CONTROLLER=%u\n", (UINT32)NUM_PCIE_CONTROLLER));
+  *Count = 0;
+
   for  (Idx = 0, Loop = 0; Idx < NUM_PCIE_CONTROLLER; Idx++) {
     PciPhyMemAddr[Idx] = PCI_SEG0_PHY_MEM_BASE + (PCI_BASE_DIFF * Idx);
     PciPhyMem64Addr[Idx] = PCI_SEG0_PHY_MEM64_BASE + (PCI_BASE_DIFF * Idx);
@@ -779,9 +838,21 @@ PciHostBridgeGetRootBridges (
     PciPhyIoAddr [Idx] =  PCI_SEG0_PHY_IO_BASE + (PCI_BASE_DIFF * Idx);
     Regs[Idx] =  PCI_SEG0_DBI_BASE + (PCI_DBI_SIZE_DIFF * Idx);
 
+    DEBUG ((
+      DEBUG_ERROR,
+      "PCIE%d : DBI=0x%lx CFG0=0x%lx CFG1=0x%lx MEM=0x%lx MEM64=0x%lx IO=0x%lx\n",
+      Idx + 1,
+      Regs[Idx],
+      PciPhyCfg0Addr[Idx],
+      PciPhyCfg1Addr[Idx],
+      PciPhyMemAddr[Idx],
+      PciPhyMem64Addr[Idx],
+      PciPhyIoAddr[Idx]
+      ));
+
     // Check is the PCIe controller is enabled
     if (IsPcieNumEnabled (Idx + 1) == 0) {
-      DEBUG ((DEBUG_INFO, "PCIE%d reg @ 0x%lx is disabled \n", Idx + 1, Regs[Idx]));
+      DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: PCIE%d rejected by serdes gate reg=0x%lx\n", Idx + 1, Regs[Idx]));
       continue;
     }
 
@@ -789,9 +860,10 @@ PciHostBridgeGetRootBridges (
     LinkUp = PcieLinkUp(Regs[Idx], Idx);
 
     if (!LinkUp) {
+      DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: PCIE%d rejected by link gate reg=0x%lx\n", Idx + 1, Regs[Idx]));
       continue;
     }
-    DEBUG ((DEBUG_INFO, "PCIE%d reg @ 0x%lx :Passed Linkup Phase\n", Idx + 1, Regs[Idx]));
+    DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: PCIE%d published reg=0x%lx\n", Idx + 1, Regs[Idx]));
     // Set up PCIe Controller and ATU windows
     PcieSetupCntrl (Regs[Idx],
                     PciPhyCfg0Addr[Idx],
@@ -836,9 +908,11 @@ PciHostBridgeGetRootBridges (
   }
 
   if (Loop == 0) {
+    DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: no root bridges published\n"));
     return NULL;
   }
 
+  DEBUG ((DEBUG_ERROR, "NXP PciHostBridgeLib: published root bridge count=%u\n", (UINT32)Loop));
   *Count = Loop;
   return mPciRootBridges;
 }

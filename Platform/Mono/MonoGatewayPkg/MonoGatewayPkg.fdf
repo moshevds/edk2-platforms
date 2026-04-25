@@ -141,6 +141,14 @@ READ_LOCK_STATUS   = TRUE
   INF Silicon/NXP/Drivers/MmcHostDxe/MmcHostDxe.inf
   INF EmbeddedPkg/Universal/MmcDxe/MmcDxe.inf
 
+  #
+  # PCI
+  #
+  INF Silicon/NXP/Drivers/PciCpuIo2Dxe/PciCpuIo2Dxe.inf
+  INF MdeModulePkg/Bus/Pci/PciHostBridgeDxe/PciHostBridgeDxe.inf
+  INF MdeModulePkg/Bus/Pci/PciBusDxe/PciBusDxe.inf
+  INF MdeModulePkg/Bus/Pci/NvmExpressDxe/NvmExpressDxe.inf
+
   INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
   INF Silicon/NXP/Drivers/I2cDxe/I2cDxe.inf
   INF SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf
