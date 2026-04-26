@@ -28,6 +28,8 @@
   Package (2) { Key, Value }
 #define MONO_DSDT_PROP_U32(Key, Value) \
   Package (2) { Key, Value }
+#define MONO_DSDT_PROP_U64(Key, Value) \
+  Package (2) { Key, Value }
 #define MONO_DSDT_PROP_U32_ARR4(Key, V0, V1, V2, V3) \
   Package (2) { Key, Package () { V0, V1, V2, V3 } }
 #define MONO_DSDT_PROP_REF(Key, Ref0) \
@@ -42,12 +44,15 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     Name (EDSP, One)
     Name (EQSP, One)
     Name (EMMC, One)
+    Name (EMIM, Zero)
+    Name (EMGS, Zero)
     Name (EGP2, One)
     Name (EI20, One)
     Name (EI21, One)
     Name (EI22, One)
     Name (EI23, One)
     Name (ERTC, One)
+    Name (EFTA, Zero)
     Name (EWDT, One)
     Name (EPC2, One)
     Name (ESF0, One)
@@ -233,7 +238,17 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     }
 
     Device (SDC0) {
-      Name (_HID, "NXP0003")
+      Method (_HID, 0, NotSerialized) {
+        If (EMGS) {
+          Return (EISAID ("PNP0D40"))
+        }
+
+        If (EMIM) {
+          Return ("PRP0001")
+        }
+
+        Return ("NXP0003")
+      }
       Name (_UID, Zero)
       Name (_CCA, One)
       MONO_DSDT_STA_FLAG (EMMC)
@@ -248,20 +263,42 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
         Store (\_SB.PCLK.CLK, CLK)
       }
 
-      Name (_DSD, Package () {
-        ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
-          MONO_DSDT_PROP_U32 ("big-endian", One),
-          MONO_DSDT_PROP_U32 ("bus-width", 4),
-          MONO_DSDT_PROP_U32 ("clock-frequency", CLK),
-          MONO_DSDT_PROP_U32 ("mmc-hs200-1_8v", One),
-          MONO_DSDT_PROP_U32 ("sdhci,auto-cmd12", One),
-          MONO_DSDT_PROP_U32 ("sd-uhs-sdr104", One),
-          MONO_DSDT_PROP_U32 ("sd-uhs-sdr50", One),
-          MONO_DSDT_PROP_U32 ("sd-uhs-sdr25", One),
-          MONO_DSDT_PROP_U32 ("sd-uhs-sdr12", One),
-          MONO_DSDT_PROP_U32_ARR4 ("voltage-ranges", 1800, 1800, 3300, 3300)
+      Method (_DSD, 0, Serialized) {
+        If (LOr (EMIM, EMGS)) {
+          Return (Package () {
+            ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
+              MONO_DSDT_PROP_COMPAT1 ("fsl,imx53-esdhc"),
+              MONO_DSDT_PROP_U32 ("big-endian", One),
+              MONO_DSDT_PROP_U32 ("bus-width", 4),
+              MONO_DSDT_PROP_U32 ("clock-frequency", CLK),
+              MONO_DSDT_PROP_U32 ("mmc-hs200-1_8v", One),
+              MONO_DSDT_PROP_U64 ("sdhci-caps", 0x0000AF0037FAC881),
+              MONO_DSDT_PROP_U64 ("sdhci-caps-mask", 0xFFFFFFFFFFFFFFFF),
+              MONO_DSDT_PROP_U32 ("sdhci,auto-cmd12", One),
+              MONO_DSDT_PROP_U32 ("sd-uhs-sdr104", One),
+              MONO_DSDT_PROP_U32 ("sd-uhs-sdr50", One),
+              MONO_DSDT_PROP_U32 ("sd-uhs-sdr25", One),
+              MONO_DSDT_PROP_U32 ("sd-uhs-sdr12", One),
+              MONO_DSDT_PROP_U32_ARR4 ("voltage-ranges", 1800, 1800, 3300, 3300)
+            }
+          })
         }
-      })
+
+        Return (Package () {
+          ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
+            MONO_DSDT_PROP_U32 ("big-endian", One),
+            MONO_DSDT_PROP_U32 ("bus-width", 4),
+            MONO_DSDT_PROP_U32 ("clock-frequency", CLK),
+            MONO_DSDT_PROP_U32 ("mmc-hs200-1_8v", One),
+            MONO_DSDT_PROP_U32 ("sdhci,auto-cmd12", One),
+            MONO_DSDT_PROP_U32 ("sd-uhs-sdr104", One),
+            MONO_DSDT_PROP_U32 ("sd-uhs-sdr50", One),
+            MONO_DSDT_PROP_U32 ("sd-uhs-sdr25", One),
+            MONO_DSDT_PROP_U32 ("sd-uhs-sdr12", One),
+            MONO_DSDT_PROP_U32_ARR4 ("voltage-ranges", 1800, 1800, 3300, 3300)
+          }
+        })
+      }
     }
 
     Device (GP20) {
@@ -387,6 +424,43 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
           MONO_DSDT_PROP_U32 ("single-master", One)
         }
       })
+
+      Device (MUX0) {
+        Name (_HID, "PRP0001")
+        MONO_DSDT_STA_FLAG (EI22)
+
+        Name (_DSD, Package () {
+          ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
+            MONO_DSDT_PROP_COMPAT1 ("nxp,pca9546")
+          }
+        })
+
+        Name (_CRS, ResourceTemplate () {
+          I2CSerialBus (0x70, ControllerInitiated, 100000, AddressingMode7Bit, "\\_SB.I2C2", 0, ResourceConsumer, ,)
+        })
+
+        Device (CH02) {
+          Name (_ADR, 0x02)
+          MONO_DSDT_STA_FLAG (EI22)
+
+          Device (RTC0) {
+            Name (_HID, "PRP0001")
+            Name (_UID, Zero)
+            Name (_CCA, One)
+            MONO_DSDT_STA_FLAG (ERTC)
+
+            Name (_DSD, Package () {
+              ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
+                MONO_DSDT_PROP_COMPAT1 ("nxp,pcf2131")
+              }
+            })
+
+            Name (_CRS, ResourceTemplate () {
+              I2CSerialBus (0x53, ControllerInitiated, 100000, AddressingMode7Bit, "\\_SB.I2C2.MUX0.CH02", 0, ResourceConsumer, ,)
+            })
+          }
+        }
+      }
     }
 
     Device (I2C3) {
@@ -413,11 +487,11 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       })
     }
 
-    Device (RTC0) {
+    Device (FTA0) {
       Name (_HID, "NXP0014")
       Name (_UID, Zero)
       Name (_CCA, One)
-      MONO_DSDT_STA_FLAG (ERTC)
+      MONO_DSDT_STA_FLAG (EFTA)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, FTMRTC0_BASE, FTMRTC_LEN)

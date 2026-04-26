@@ -18,6 +18,10 @@
 #define MONO_CONFIG_FORM_ID_ACPI_DEVICES  0x1002
 #define MONO_CONFIG_FORM_ID_ADVANCED      0x1003
 
+#define MONO_EMMC_ACPI_TABLE_QORIQ        0
+#define MONO_EMMC_ACPI_TABLE_IMX          1
+#define MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI 2
+
 typedef struct {
   UINT32    Revision;
   UINT32    Fadt : 1;
@@ -61,7 +65,8 @@ typedef struct {
   UINT32    Eth3 : 1;
   UINT32    Reserved2 : 29;
   UINT8     PcieRootBus;
-  UINT8     Reserved3[7];
+  UINT8     EmmcAcpiTable;
+  UINT8     Reserved3[6];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

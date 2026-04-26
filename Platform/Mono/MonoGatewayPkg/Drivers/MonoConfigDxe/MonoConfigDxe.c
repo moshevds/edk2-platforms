@@ -77,6 +77,23 @@ NormalizePcieRootBus (
 }
 
 STATIC
+UINT8
+NormalizeEmmcAcpiTable (
+  IN UINT8  EmmcAcpiTable
+  )
+{
+  if (EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_IMX) {
+    return MONO_EMMC_ACPI_TABLE_IMX;
+  }
+
+  if (EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI) {
+    return MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI;
+  }
+
+  return MONO_EMMC_ACPI_TABLE_QORIQ;
+}
+
+STATIC
 BOOLEAN
 GetMonoConfigVariableInfo (
   IN  CONST EFI_STRING  Request,
@@ -265,6 +282,8 @@ MonoConfigRouteConfig (
   if (StrCmp (VariableName, MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME) == 0) {
     ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->PcieRootBus =
       NormalizePcieRootBus (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->PcieRootBus);
+    ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->EmmcAcpiTable =
+      NormalizeEmmcAcpiTable (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->EmmcAcpiTable);
   }
 
   return gRT->SetVariable (
@@ -309,9 +328,10 @@ SetDefaultDeviceConfig (
   )
 {
   ZeroMem (Config, sizeof (*Config));
-  Config->Revision    = MONO_ACPI_DEVICE_CONFIG_REVISION;
-  Config->EnabledMask = MONO_ACPI_DEVICE_MASK_DEFAULT;
-  Config->PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
+  Config->Revision      = MONO_ACPI_DEVICE_CONFIG_REVISION;
+  Config->EnabledMask   = MONO_ACPI_DEVICE_MASK_DEFAULT;
+  Config->PcieRootBus   = MONO_PCIE_ROOT_BUS_DEFAULT;
+  Config->EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
 }
 
 STATIC
@@ -387,6 +407,7 @@ EnsureDeviceConfigVariable (
   {
     Config.EnabledMask &= MONO_ACPI_DEVICE_MASK_ALL;
     Config.PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
+    Config.EmmcAcpiTable = NormalizeEmmcAcpiTable (Config.EmmcAcpiTable);
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
                   &gMonoGatewayTokenSpaceGuid,
@@ -404,6 +425,7 @@ EnsureDeviceConfigVariable (
     Config.Reserved    = 0;
     Config.EnabledMask = ((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask & MONO_ACPI_DEVICE_MASK_ALL;
     Config.PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
+    Config.EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
     ZeroMem (Config.Reserved1, sizeof (Config.Reserved1));
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,

@@ -140,6 +140,15 @@ formset
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
 
+    oneof varid = MonoAcpiDeviceConfig.EmmcAcpiTable,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_EMMC_ACPI_TABLE_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_EMMC_ACPI_TABLE_HELP),
+      flags  = RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_MONO_DEVICE_EMMC_ACPI_TABLE_QORIQ_OPTION), value = MONO_EMMC_ACPI_TABLE_QORIQ, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_EMMC_ACPI_TABLE_IMX_OPTION), value = MONO_EMMC_ACPI_TABLE_IMX, flags = 0;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_EMMC_ACPI_TABLE_GENERIC_SDHCI_OPTION), value = MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI, flags = 0;
+    endoneof;
+
     checkbox varid = MonoAcpiDeviceConfig.Gpio2,
       prompt = STRING_TOKEN (STR_MONO_DEVICE_GPIO2_PROMPT),
       help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),

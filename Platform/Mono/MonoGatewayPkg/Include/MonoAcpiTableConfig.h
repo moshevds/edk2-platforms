@@ -66,6 +66,11 @@ typedef struct {
 #define MONO_PCIE_ROOT_BUS_DOWNSTREAM          1U
 #define MONO_PCIE_ROOT_BUS_DEFAULT             MONO_PCIE_ROOT_BUS_DOWNSTREAM
 
+#define MONO_EMMC_ACPI_TABLE_QORIQ             0U
+#define MONO_EMMC_ACPI_TABLE_IMX               1U
+#define MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI     2U
+#define MONO_EMMC_ACPI_TABLE_DEFAULT           MONO_EMMC_ACPI_TABLE_QORIQ
+
 typedef enum {
   //
   // Core user-visible devices
@@ -148,7 +153,8 @@ typedef struct {
     MONO_ACPI_DEVICE_FLAGS    Devices;
   };
   UINT8     PcieRootBus;
-  UINT8     Reserved1[7];
+  UINT8     EmmcAcpiTable;
+  UINT8     Reserved1[6];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

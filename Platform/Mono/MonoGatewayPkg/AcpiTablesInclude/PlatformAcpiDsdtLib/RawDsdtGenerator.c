@@ -67,6 +67,23 @@ NormalizePcieRootBus (
 }
 
 STATIC
+UINT8
+NormalizeEmmcAcpiTable (
+  IN UINT8  EmmcAcpiTable
+  )
+{
+  if (EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_IMX) {
+    return MONO_EMMC_ACPI_TABLE_IMX;
+  }
+
+  if (EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI) {
+    return MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI;
+  }
+
+  return MONO_EMMC_ACPI_TABLE_QORIQ;
+}
+
+STATIC
 UINT64
 NormalizeAcpiDeviceMask (
   IN UINT64  EnabledMask
@@ -103,7 +120,8 @@ STATIC
 VOID
 LoadAcpiDeviceConfig (
   OUT UINT64  *DeviceMask,
-  OUT UINT8   *PcieRootBus
+  OUT UINT8   *PcieRootBus,
+  OUT UINT8   *EmmcAcpiTable
   )
 {
   MONO_ACPI_DEVICE_CONFIG  Config;
@@ -112,9 +130,11 @@ LoadAcpiDeviceConfig (
 
   ASSERT (DeviceMask != NULL);
   ASSERT (PcieRootBus != NULL);
+  ASSERT (EmmcAcpiTable != NULL);
 
-  *DeviceMask  = MONO_ACPI_DEVICE_MASK_DEFAULT;
-  *PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
+  *DeviceMask     = MONO_ACPI_DEVICE_MASK_DEFAULT;
+  *PcieRootBus    = MONO_PCIE_ROOT_BUS_DEFAULT;
+  *EmmcAcpiTable  = MONO_EMMC_ACPI_TABLE_DEFAULT;
 
   ZeroMem (&Config, sizeof (Config));
   Config.Revision = 0;
@@ -149,8 +169,9 @@ LoadAcpiDeviceConfig (
     return;
   }
 
-  *DeviceMask  = NormalizeAcpiDeviceMask (Config.EnabledMask);
-  *PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
+  *DeviceMask     = NormalizeAcpiDeviceMask (Config.EnabledMask);
+  *PcieRootBus    = NormalizePcieRootBus (Config.PcieRootBus);
+  *EmmcAcpiTable  = NormalizeEmmcAcpiTable (Config.EmmcAcpiTable);
 }
 
 STATIC
@@ -442,6 +463,7 @@ BuildRawDsdtTable (
   UINT8                              *Aml;
   UINT64                             DeviceMask;
   UINT8                              PcieRootBus;
+  UINT8                              EmmcAcpiTable;
   UINTN                              Index;
 
   ASSERT (This != NULL);
@@ -458,7 +480,7 @@ BuildRawDsdtTable (
   }
 
   CopyMem (PatchList, PatchTemplate, sizeof (PatchList));
-  LoadAcpiDeviceConfig (&DeviceMask, &PcieRootBus);
+  LoadAcpiDeviceConfig (&DeviceMask, &PcieRootBus, &EmmcAcpiTable);
 
   PatchList[0].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUart0)) != 0);
   PatchList[1].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUsb0)) != 0);
@@ -493,7 +515,9 @@ BuildRawDsdtTable (
 
   PatchNamedBoolean (Aml, Header->Length, "_BBN", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
   PatchNamedBoolean (Aml, Header->Length, "PRBM", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
-  DEBUG ((DEBUG_INFO, "MONO ACPI: DSDT PCIe root bus mode=%u\n", PcieRootBus));
+  PatchNamedBoolean (Aml, Header->Length, "EMIM", (BOOLEAN)(EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_IMX));
+  PatchNamedBoolean (Aml, Header->Length, "EMGS", (BOOLEAN)(EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI));
+  DEBUG ((DEBUG_INFO, "MONO ACPI: DSDT PCIe root bus mode=%u eMMC ACPI table=%u\n", PcieRootBus, EmmcAcpiTable));
 
   *Table = DsdtCopy;
   return EFI_SUCCESS;
