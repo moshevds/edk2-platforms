@@ -192,24 +192,32 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     }
 
     Device (DSP0) {
-      Name (_HID, "PRP0001")
+      Name (_HID, "NXP0005")
       Name (_UID, Zero)
       Name (_CCA, One)
+      Name (CLK, Zero)
       MONO_DSDT_STA_FLAG (EDSP)
 
       Name (RBUF, ResourceTemplate () {
         Memory32Fixed (ReadWrite, DSPI0_BASE, DSPI_LEN)
-        Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { DSPI0_IT }
+        Interrupt (ResourceConsumer, Level, ActiveHigh, Shared) { DSPI0_IT }
       })
 
       Method (_CRS, 0, Serialized) {
         Return (RBUF)
       }
 
+      Method (_INI, 0, NotSerialized) {
+        Store (\_SB.PCLK.CLK, CLK)
+        Divide (CLK, 2, , CLK)
+      }
+
       Name (_DSD, Package () {
         ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
-          MONO_DSDT_PROP_COMPAT1 ("fsl,ls1021a-v1.0-dspi"),
-          MONO_DSDT_PROP_U32 ("spi-num-chipselects", 5)
+          MONO_DSDT_PROP_U32 ("clock-frequency", CLK),
+          MONO_DSDT_PROP_U32 ("spi-num-chipselects", 5),
+          MONO_DSDT_PROP_U32 ("big-endian", One),
+          MONO_DSDT_PROP_U32 ("bus-num", Zero)
         }
       })
     }
@@ -511,7 +519,7 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     }
 
     Device (WDT0) {
-      Name (_HID, "PRP0001")
+      Name (_HID, "NXP0019")
       Name (_UID, Zero)
       Name (_CCA, One)
       MONO_DSDT_STA_FLAG (EWDT)
@@ -524,12 +532,6 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       Method (_CRS, 0, Serialized) {
         Return (RBUF)
       }
-
-      Name (_DSD, Package () {
-        ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
-          MONO_DSDT_PROP_COMPAT2 ("fsl,ls1046a-wdt", "fsl,imx21-wdt")
-        }
-      })
     }
 
     Device (SFP0) {

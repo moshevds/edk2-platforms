@@ -301,6 +301,41 @@ PatchDtbMacAddressesFromEeprom (
 }
 
 STATIC
+VOID
+PatchDtbCaam (
+  IN OUT VOID  *Dtb
+  )
+{
+  INT32  Node;
+  INT32  FdtStatus;
+
+  Node = FdtPathOffset (Dtb, "/soc/crypto@1700000");
+  if (Node < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM DT node not found\n"));
+    return;
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, "big-endian", NULL, 0);
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set CAAM big-endian: %a\n", FdtStrerror (FdtStatus)));
+  }
+
+  Node = FdtPathOffset (Dtb, "/soc/crypto@1700000/jr@40000");
+  if (Node < 0) {
+    DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: CAAM JR3 DT node already absent\n"));
+    return;
+  }
+
+  FdtStatus = FdtDelNode (Dtb, Node);
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to delete CAAM JR3 node: %a\n", FdtStrerror (FdtStatus)));
+    return;
+  }
+
+  DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: patched CAAM DT node for LS1046A\n"));
+}
+
+STATIC
 EFI_STATUS
 ClearInstalledDtb (
   VOID
@@ -371,6 +406,7 @@ InstallEmbeddedDtb (
   }
 
   PatchDtbMacAddressesFromEeprom ((VOID *)(UINTN)RuntimeBase);
+  PatchDtbCaam ((VOID *)(UINTN)RuntimeBase);
 
   Status = gBS->InstallConfigurationTable (
                   &gFdtTableGuid,

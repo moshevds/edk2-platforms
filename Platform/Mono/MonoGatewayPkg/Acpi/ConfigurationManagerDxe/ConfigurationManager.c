@@ -7,6 +7,7 @@
 #include <IndustryStandard/MemoryMappedConfigurationSpaceAccessTable.h>
 #include <IndustryStandard/DebugPort2Table.h>
 #include <IndustryStandard/SerialPortConsoleRedirectionTable.h>
+#include <IndustryStandard/WatchdogActionTable.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -85,6 +86,13 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
       NULL,
       CFG_MGR_TABLE_ID
     },
+    {
+      EFI_ACPI_6_2_WATCHDOG_ACTION_TABLE_SIGNATURE,
+      EFI_ACPI_WATCHDOG_ACTION_1_0_TABLE_REVISION,
+      CREATE_OEM_ACPI_TABLE_GEN_ID (PlatAcpiTableIdWdat),
+      NULL,
+      CFG_MGR_TABLE_ID
+    },
   },
   {
     { 0 },
@@ -125,7 +133,8 @@ STATIC CONST CHAR8  *mMonoAcpiTableNames[MonoAcpiTableCount] = {
   "SPCR",
   "PPTT",
   "DSDT",
-  "OEMX"
+  "OEMX",
+  "WDAT"
 };
 
 typedef struct {
@@ -165,6 +174,19 @@ NormalizeAcpiDeviceMask (
   }
 
   return EnabledMask;
+}
+
+STATIC
+UINT8
+NormalizeWdtAcpiTable (
+  IN UINT8  WdtAcpiTable
+  )
+{
+  if (WdtAcpiTable == MONO_WDT_ACPI_TABLE_NXP) {
+    return MONO_WDT_ACPI_TABLE_NXP;
+  }
+
+  return MONO_WDT_ACPI_TABLE_WDAT;
 }
 
 STATIC
@@ -250,8 +272,10 @@ LoadAcpiTableMask (
     return GetDefaultAcpiTableMask ();
   }
 
-  if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
-    EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config.EnabledMask);
+  if ((Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) ||
+      (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_2))
+  {
+    EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_ANY (Config.Revision, Config.EnabledMask);
   } else if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION) {
     EnabledMask = Config.EnabledMask;
   } else {
@@ -268,15 +292,21 @@ LoadAcpiTableMask (
 }
 
 STATIC
-UINT64
-LoadAcpiDeviceMask (
-  VOID
+VOID
+LoadAcpiDeviceConfig (
+  OUT UINT64  *DeviceMask,
+  OUT UINT8   *WdtAcpiTable
   )
 {
   MONO_ACPI_DEVICE_CONFIG  Config;
   EFI_STATUS               Status;
   UINTN                    DataSize;
-  UINT64                   EnabledMask;
+
+  ASSERT (DeviceMask != NULL);
+  ASSERT (WdtAcpiTable != NULL);
+
+  *DeviceMask = MONO_ACPI_DEVICE_MASK_DEFAULT;
+  *WdtAcpiTable = MONO_WDT_ACPI_TABLE_DEFAULT;
 
   ZeroMem (&Config, sizeof (Config));
   Config.Revision = 0;
@@ -290,17 +320,21 @@ LoadAcpiDeviceMask (
                   &Config
                   );
   if (EFI_ERROR (Status)) {
-    return MONO_ACPI_DEVICE_MASK_DEFAULT;
+    return;
   }
 
   if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
       (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
   {
-    EnabledMask = ((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask;
+    *DeviceMask = NormalizeAcpiDeviceMask (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask);
   } else if ((DataSize == sizeof (Config)) &&
-             (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION))
+             ((Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION) ||
+              (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
   {
-    EnabledMask = Config.EnabledMask;
+    *DeviceMask = NormalizeAcpiDeviceMask (Config.EnabledMask);
+    *WdtAcpiTable = (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_2) ?
+                    MONO_WDT_ACPI_TABLE_DEFAULT :
+                    NormalizeWdtAcpiTable (Config.WdtAcpiTable);
   } else {
     DEBUG ((
       DEBUG_WARN,
@@ -308,17 +342,15 @@ LoadAcpiDeviceMask (
       (UINT32)DataSize,
       Config.Revision
       ));
-    return MONO_ACPI_DEVICE_MASK_DEFAULT;
   }
-
-  return NormalizeAcpiDeviceMask (EnabledMask);
 }
 
 STATIC
 UINT32
 ApplyDeviceTableImplications (
   IN UINT32  EnabledMask,
-  IN UINT64  DeviceMask
+  IN UINT64  DeviceMask,
+  IN UINT8   WdtAcpiTable
   )
 {
   if ((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUart0)) == 0) {
@@ -333,6 +365,12 @@ ApplyDeviceTableImplications (
                      MONO_ACPI_TABLE_BIT (MonoAcpiTableMcfg) |
                      MONO_ACPI_TABLE_BIT (MonoAcpiTableOemx)
                      );
+  }
+
+  if (((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceWdt0)) == 0) ||
+      (WdtAcpiTable != MONO_WDT_ACPI_TABLE_WDAT))
+  {
+    EnabledMask &= ~MONO_ACPI_TABLE_BIT (MonoAcpiTableWdat);
   }
 
   return EnabledMask;
@@ -424,11 +462,12 @@ InitializePlatformRepository (
   MONO_PLATFORM_REPOSITORY_INFO  *PlatformRepo;
   UINT32                         EnabledMask;
   UINT64                         DeviceMask;
+  UINT8                          WdtAcpiTable;
 
   PlatformRepo = This->PlatRepoInfo;
   PlatformRepo->BoardRevision = 0;
-  DeviceMask = LoadAcpiDeviceMask ();
-  EnabledMask = ApplyDeviceTableImplications (LoadAcpiTableMask (), DeviceMask);
+  LoadAcpiDeviceConfig (&DeviceMask, &WdtAcpiTable);
+  EnabledMask = ApplyDeviceTableImplications (LoadAcpiTableMask (), DeviceMask, WdtAcpiTable);
   ApplyAcpiTableMask (PlatformRepo, EnabledMask);
 
   DEBUG ((
@@ -444,10 +483,11 @@ InitializePlatformRepository (
     ));
   DEBUG ((
     DEBUG_INFO,
-    "MONO ACPI: TableList count=%u mask=0x%x device-mask=0x%Lx\n",
+    "MONO ACPI: TableList count=%u mask=0x%x device-mask=0x%Lx wdt-table=%u\n",
     PlatformRepo->CmAcpiTableCount,
     EnabledMask,
-    DeviceMask
+    DeviceMask,
+    WdtAcpiTable
     ));
 
   return ValidatePlatformRepository (PlatformRepo);

@@ -102,6 +102,12 @@ formset
       help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Wdat,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_WDAT_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
   endform;
 
   form formid = MONO_CONFIG_FORM_ID_ACPI_DEVICES,
@@ -190,6 +196,14 @@ formset
       help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
+
+    oneof varid = MonoAcpiDeviceConfig.WdtAcpiTable,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_WDT_ACPI_TABLE_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_WDT_ACPI_TABLE_HELP),
+      flags  = RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_MONO_DEVICE_WDT_ACPI_TABLE_WDAT_OPTION), value = MONO_WDT_ACPI_TABLE_WDAT, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_WDT_ACPI_TABLE_NXP_OPTION), value = MONO_WDT_ACPI_TABLE_NXP, flags = 0;
+    endoneof;
 
     checkbox varid = MonoAcpiDeviceConfig.Pcie2,
       prompt = STRING_TOKEN (STR_MONO_DEVICE_PCIE2_PROMPT),

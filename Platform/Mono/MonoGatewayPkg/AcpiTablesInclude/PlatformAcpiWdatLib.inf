@@ -1,0 +1,29 @@
+## @file
+#  Mono Gateway WDAT ACPI table generator
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = MonoPlatformAcpiWdatLib
+  FILE_GUID      = 3d5ce45a-1082-402c-8b0b-01190e1c1a97
+  VERSION_STRING = 1.0
+  MODULE_TYPE    = DXE_DRIVER
+  LIBRARY_CLASS  = NULL|DXE_DRIVER
+  CONSTRUCTOR    = AcpiWdatLibConstructor
+  DESTRUCTOR     = AcpiWdatLibDestructor
+
+[Sources]
+  PlatformAcpiWdatLib/RawWdatGenerator.c
+
+[Packages]
+  DynamicTablesPkg/DynamicTablesPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  MemoryAllocationLib

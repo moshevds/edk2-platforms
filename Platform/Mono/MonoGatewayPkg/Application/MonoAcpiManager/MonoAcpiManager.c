@@ -25,7 +25,8 @@ STATIC CONST CHAR16  *mTableNames[MonoAcpiTableCount] = {
   L"spcr",
   L"pptt",
   L"dsdt",
-  L"oemx"
+  L"oemx",
+  L"wdat"
 };
 
 STATIC
@@ -42,7 +43,7 @@ PrintUsage (
   Print (L"  MonoAcpiManager disable <table|all>\r\n");
   Print (L"  MonoAcpiManager reset\r\n");
   Print (L"\r\n");
-  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt oemx\r\n");
+  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt oemx wdat\r\n");
 }
 
 STATIC
@@ -105,8 +106,10 @@ LoadConfig (
     return EFI_COMPROMISED_DATA;
   }
 
-  if (Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
-    Config->EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config->EnabledMask);
+  if ((Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) ||
+      (Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_2))
+  {
+    Config->EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_ANY (Config->Revision, Config->EnabledMask);
     Config->Revision = MONO_ACPI_TABLE_CONFIG_REVISION;
     return EFI_SUCCESS;
   }

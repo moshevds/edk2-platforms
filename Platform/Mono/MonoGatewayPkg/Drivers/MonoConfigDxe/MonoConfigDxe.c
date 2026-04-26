@@ -94,6 +94,19 @@ NormalizeEmmcAcpiTable (
 }
 
 STATIC
+UINT8
+NormalizeWdtAcpiTable (
+  IN UINT8  WdtAcpiTable
+  )
+{
+  if (WdtAcpiTable == MONO_WDT_ACPI_TABLE_NXP) {
+    return MONO_WDT_ACPI_TABLE_NXP;
+  }
+
+  return MONO_WDT_ACPI_TABLE_WDAT;
+}
+
+STATIC
 BOOLEAN
 GetMonoConfigVariableInfo (
   IN  CONST EFI_STRING  Request,
@@ -284,6 +297,8 @@ MonoConfigRouteConfig (
       NormalizePcieRootBus (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->PcieRootBus);
     ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->EmmcAcpiTable =
       NormalizeEmmcAcpiTable (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->EmmcAcpiTable);
+    ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->WdtAcpiTable =
+      NormalizeWdtAcpiTable (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->WdtAcpiTable);
   }
 
   return gRT->SetVariable (
@@ -332,6 +347,7 @@ SetDefaultDeviceConfig (
   Config->EnabledMask   = MONO_ACPI_DEVICE_MASK_DEFAULT;
   Config->PcieRootBus   = MONO_PCIE_ROOT_BUS_DEFAULT;
   Config->EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
+  Config->WdtAcpiTable  = MONO_WDT_ACPI_TABLE_DEFAULT;
 }
 
 STATIC
@@ -355,10 +371,11 @@ EnsureTableConfigVariable (
   if (!EFI_ERROR (Status) &&
       (DataSize == sizeof (Config)) &&
       ((Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION) ||
-       (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1)))
+       (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) ||
+       (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_2)))
   {
-    if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
-      Config.EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config.EnabledMask);
+    if (Config.Revision != MONO_ACPI_TABLE_CONFIG_REVISION) {
+      Config.EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_ANY (Config.Revision, Config.EnabledMask);
       Config.Revision = MONO_ACPI_TABLE_CONFIG_REVISION;
     }
 
@@ -403,11 +420,18 @@ EnsureDeviceConfigVariable (
                     );
   if (!EFI_ERROR (Status) &&
       (DataSize == sizeof (Config)) &&
-      (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION))
+      ((Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION) ||
+       (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
   {
+    if (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_2) {
+      Config.Revision = MONO_ACPI_DEVICE_CONFIG_REVISION;
+      Config.WdtAcpiTable = MONO_WDT_ACPI_TABLE_DEFAULT;
+    }
+
     Config.EnabledMask &= MONO_ACPI_DEVICE_MASK_ALL;
     Config.PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
     Config.EmmcAcpiTable = NormalizeEmmcAcpiTable (Config.EmmcAcpiTable);
+    Config.WdtAcpiTable = NormalizeWdtAcpiTable (Config.WdtAcpiTable);
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
                   &gMonoGatewayTokenSpaceGuid,
@@ -426,6 +450,7 @@ EnsureDeviceConfigVariable (
     Config.EnabledMask = ((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask & MONO_ACPI_DEVICE_MASK_ALL;
     Config.PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
     Config.EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
+    Config.WdtAcpiTable = MONO_WDT_ACPI_TABLE_DEFAULT;
     ZeroMem (Config.Reserved1, sizeof (Config.Reserved1));
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,

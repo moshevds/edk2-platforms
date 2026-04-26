@@ -12,7 +12,7 @@
 extern EFI_GUID  gMonoGatewayTokenSpaceGuid;
 
 #define MONO_ACPI_TABLE_CONFIG_VARIABLE_NAME  L"MonoAcpiTableConfig"
-#define MONO_ACPI_TABLE_CONFIG_REVISION       2U
+#define MONO_ACPI_TABLE_CONFIG_REVISION       3U
 
 typedef enum {
   MonoAcpiTableFadt = 0,
@@ -24,6 +24,7 @@ typedef enum {
   MonoAcpiTablePptt,
   MonoAcpiTableDsdt,
   MonoAcpiTableOemx,
+  MonoAcpiTableWdat,
   MonoAcpiTableCount
 } MONO_ACPI_TABLE_ID;
 
@@ -31,9 +32,17 @@ typedef enum {
 #define MONO_ACPI_TABLE_MASK_ALL      ((1U << MonoAcpiTableCount) - 1U)
 #define MONO_ACPI_TABLE_MASK_DEFAULT  MONO_ACPI_TABLE_MASK_ALL
 #define MONO_ACPI_TABLE_CONFIG_REVISION_1      1U
+#define MONO_ACPI_TABLE_CONFIG_REVISION_2      2U
 #define MONO_ACPI_TABLE_MASK_REVISION_1        ((1U << MonoAcpiTableOemx) - 1U)
+#define MONO_ACPI_TABLE_MASK_REVISION_2        ((1U << MonoAcpiTableWdat) - 1U)
 #define MONO_ACPI_TABLE_MIGRATE_REVISION_1(Mask)  \
   (((Mask) & MONO_ACPI_TABLE_MASK_REVISION_1) | MONO_ACPI_TABLE_BIT (MonoAcpiTableOemx))
+#define MONO_ACPI_TABLE_MIGRATE_REVISION_2(Mask)  \
+  (((Mask) & MONO_ACPI_TABLE_MASK_REVISION_2) | MONO_ACPI_TABLE_BIT (MonoAcpiTableWdat))
+#define MONO_ACPI_TABLE_MIGRATE_REVISION_ANY(Revision, Mask)  \
+  (((Revision) == MONO_ACPI_TABLE_CONFIG_REVISION_1) ? \
+   MONO_ACPI_TABLE_MIGRATE_REVISION_2 (MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Mask)) : \
+   MONO_ACPI_TABLE_MIGRATE_REVISION_2 (Mask))
 
 #pragma pack(1)
 typedef struct {
@@ -46,7 +55,8 @@ typedef struct {
   UINT32    Pptt : 1;
   UINT32    Dsdt : 1;
   UINT32    Oemx : 1;
-  UINT32    Reserved : 23;
+  UINT32    Wdat : 1;
+  UINT32    Reserved : 22;
 } MONO_ACPI_TABLE_FLAGS;
 #pragma pack()
 
@@ -59,8 +69,9 @@ typedef struct {
 } MONO_ACPI_TABLE_CONFIG;
 
 #define MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME  L"MonoAcpiDeviceConfig"
-#define MONO_ACPI_DEVICE_CONFIG_REVISION       2U
+#define MONO_ACPI_DEVICE_CONFIG_REVISION       3U
 #define MONO_ACPI_DEVICE_CONFIG_REVISION_1     1U
+#define MONO_ACPI_DEVICE_CONFIG_REVISION_2     2U
 
 #define MONO_PCIE_ROOT_BUS_ROOT_PORT           0U
 #define MONO_PCIE_ROOT_BUS_DOWNSTREAM          1U
@@ -70,6 +81,10 @@ typedef struct {
 #define MONO_EMMC_ACPI_TABLE_IMX               1U
 #define MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI     2U
 #define MONO_EMMC_ACPI_TABLE_DEFAULT           MONO_EMMC_ACPI_TABLE_QORIQ
+
+#define MONO_WDT_ACPI_TABLE_WDAT               0U
+#define MONO_WDT_ACPI_TABLE_NXP                1U
+#define MONO_WDT_ACPI_TABLE_DEFAULT            MONO_WDT_ACPI_TABLE_WDAT
 
 typedef enum {
   //
@@ -154,7 +169,8 @@ typedef struct {
   };
   UINT8     PcieRootBus;
   UINT8     EmmcAcpiTable;
-  UINT8     Reserved1[6];
+  UINT8     WdtAcpiTable;
+  UINT8     Reserved1[5];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

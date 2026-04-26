@@ -223,7 +223,10 @@ LoadPcieRootBusPolicy (
     return MONO_PCIE_ROOT_BUS_DEFAULT;
   }
 
-  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+  if ((DataSize != sizeof (Config)) ||
+      ((Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION) &&
+       (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
+  {
     DEBUG ((
       DEBUG_WARN,
       "MONO PCIe: ignoring invalid device config size=%u revision=%u for root-bus policy\n",

@@ -115,6 +115,7 @@
       NULL|DynamicTablesPkg/Library/Acpi/Arm/AcpiMadtLibArm/AcpiMadtLibArm.inf
       NULL|DynamicTablesPkg/Library/Acpi/Common/AcpiMcfgLib/AcpiMcfgLib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiOemxLib.inf
+      NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiWdatLib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiDbg2Lib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiSpcrLib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiPpttLib.inf

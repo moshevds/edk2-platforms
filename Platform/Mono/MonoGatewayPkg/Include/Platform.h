@@ -108,7 +108,7 @@
 #define NXP_OEMX_MSI_IRQ2               144
 #define NXP_OEMX_MSI_IRQ3               145
 
-#define OEM_ACPI_TABLES                 2
+#define OEM_ACPI_TABLES                 3
 #define CFG_MGR_TABLE_ID                SIGNATURE_64 ('M', 'O', 'N', 'O', ' ', ' ', ' ', ' ')
 
 #define PLAT_GIC_VERSION                GIC_VERSION
@@ -159,10 +159,10 @@
 }
 
 #define PLAT_GIC_CPU_INTERFACE    {                         \
-  GICC_ENTRY (MONO_CPU0_UID, MONO_CPU0_MPIDR, 106, 25, 0), \
-  GICC_ENTRY (MONO_CPU1_UID, MONO_CPU1_MPIDR, 107, 25, 0), \
-  GICC_ENTRY (MONO_CPU2_UID, MONO_CPU2_MPIDR,  95, 25, 0), \
-  GICC_ENTRY (MONO_CPU3_UID, MONO_CPU3_MPIDR,  97, 25, 0)  \
+  GICC_ENTRY (MONO_CPU0_UID, MONO_CPU0_MPIDR, 138, 25, 0), \
+  GICC_ENTRY (MONO_CPU1_UID, MONO_CPU1_MPIDR, 139, 25, 0), \
+  GICC_ENTRY (MONO_CPU2_UID, MONO_CPU2_MPIDR, 127, 25, 0), \
+  GICC_ENTRY (MONO_CPU3_UID, MONO_CPU3_MPIDR, 129, 25, 0)  \
 }
 
 #define PLAT_TIMER_BLOCK_INFO  { }

@@ -16,6 +16,7 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 
 #include <MonoAcpiTableConfig.h>
+#include <IndustryStandard/WatchdogActionTable.h>
 #include <Protocol/AcpiSystemDescriptionTable.h>
 #include <Protocol/AcpiTable.h>
 #include <Protocol/Shell.h>
@@ -31,7 +32,8 @@ STATIC CONST CHAR16  *mTableNames[MonoAcpiTableCount] = {
   L"spcr",
   L"pptt",
   L"dsdt",
-  L"oemx"
+  L"oemx",
+  L"wdat"
 };
 
 STATIC CONST UINT32  mTableSignatures[MonoAcpiTableCount] = {
@@ -43,7 +45,8 @@ STATIC CONST UINT32  mTableSignatures[MonoAcpiTableCount] = {
   EFI_ACPI_6_2_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_SIGNATURE,
   EFI_ACPI_6_2_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_STRUCTURE_SIGNATURE,
   EFI_ACPI_6_2_DIFFERENTIATED_SYSTEM_DESCRIPTION_TABLE_SIGNATURE,
-  SIGNATURE_32 ('O', 'E', 'M', 'X')
+  SIGNATURE_32 ('O', 'E', 'M', 'X'),
+  EFI_ACPI_6_2_WATCHDOG_ACTION_TABLE_SIGNATURE
 };
 
 typedef struct {
@@ -89,8 +92,10 @@ LoadConfig (
     return EFI_COMPROMISED_DATA;
   }
 
-  if (Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
-    Config->EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config->EnabledMask);
+  if ((Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) ||
+      (Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_2))
+  {
+    Config->EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_ANY (Config->Revision, Config->EnabledMask);
     Config->Revision = MONO_ACPI_TABLE_CONFIG_REVISION;
     return EFI_SUCCESS;
   }
@@ -146,7 +151,7 @@ PrintUsage (
   Print (L"Usage: acpicfg status|enable <table|all>|disable <table|all>|reset\r\n");
   Print (L"Disable uninstalls matching live tables immediately when safe.\r\n");
   Print (L"Enable reinstalls tables disabled earlier in this firmware session when possible.\r\n");
-  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt oemx\r\n");
+  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt oemx wdat\r\n");
 }
 
 STATIC

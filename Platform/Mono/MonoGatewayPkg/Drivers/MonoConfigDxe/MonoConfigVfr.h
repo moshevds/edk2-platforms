@@ -21,6 +21,8 @@
 #define MONO_EMMC_ACPI_TABLE_QORIQ        0
 #define MONO_EMMC_ACPI_TABLE_IMX          1
 #define MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI 2
+#define MONO_WDT_ACPI_TABLE_WDAT          0
+#define MONO_WDT_ACPI_TABLE_NXP           1
 
 typedef struct {
   UINT32    Revision;
@@ -33,7 +35,8 @@ typedef struct {
   UINT32    Pptt : 1;
   UINT32    Dsdt : 1;
   UINT32    Oemx : 1;
-  UINT32    Reserved : 23;
+  UINT32    Wdat : 1;
+  UINT32    Reserved : 22;
 } MONO_ACPI_TABLE_CONFIG;
 
 typedef struct {
@@ -66,7 +69,8 @@ typedef struct {
   UINT32    Reserved2 : 29;
   UINT8     PcieRootBus;
   UINT8     EmmcAcpiTable;
-  UINT8     Reserved3[6];
+  UINT8     WdtAcpiTable;
+  UINT8     Reserved3[5];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

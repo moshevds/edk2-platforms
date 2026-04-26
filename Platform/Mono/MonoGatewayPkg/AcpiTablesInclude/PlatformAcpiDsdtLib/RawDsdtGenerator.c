@@ -84,6 +84,19 @@ NormalizeEmmcAcpiTable (
 }
 
 STATIC
+UINT8
+NormalizeWdtAcpiTable (
+  IN UINT8  WdtAcpiTable
+  )
+{
+  if (WdtAcpiTable == MONO_WDT_ACPI_TABLE_NXP) {
+    return MONO_WDT_ACPI_TABLE_NXP;
+  }
+
+  return MONO_WDT_ACPI_TABLE_WDAT;
+}
+
+STATIC
 UINT64
 NormalizeAcpiDeviceMask (
   IN UINT64  EnabledMask
@@ -121,7 +134,8 @@ VOID
 LoadAcpiDeviceConfig (
   OUT UINT64  *DeviceMask,
   OUT UINT8   *PcieRootBus,
-  OUT UINT8   *EmmcAcpiTable
+  OUT UINT8   *EmmcAcpiTable,
+  OUT UINT8   *WdtAcpiTable
   )
 {
   MONO_ACPI_DEVICE_CONFIG  Config;
@@ -131,10 +145,12 @@ LoadAcpiDeviceConfig (
   ASSERT (DeviceMask != NULL);
   ASSERT (PcieRootBus != NULL);
   ASSERT (EmmcAcpiTable != NULL);
+  ASSERT (WdtAcpiTable != NULL);
 
   *DeviceMask     = MONO_ACPI_DEVICE_MASK_DEFAULT;
   *PcieRootBus    = MONO_PCIE_ROOT_BUS_DEFAULT;
   *EmmcAcpiTable  = MONO_EMMC_ACPI_TABLE_DEFAULT;
+  *WdtAcpiTable   = MONO_WDT_ACPI_TABLE_DEFAULT;
 
   ZeroMem (&Config, sizeof (Config));
   Config.Revision = 0;
@@ -159,7 +175,10 @@ LoadAcpiDeviceConfig (
     return;
   }
 
-  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+  if ((DataSize != sizeof (Config)) ||
+      ((Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION) &&
+       (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
+  {
     DEBUG ((
       DEBUG_WARN,
       "MONO ACPI: ignoring invalid DSDT device config size=%u revision=%u\n",
@@ -172,6 +191,9 @@ LoadAcpiDeviceConfig (
   *DeviceMask     = NormalizeAcpiDeviceMask (Config.EnabledMask);
   *PcieRootBus    = NormalizePcieRootBus (Config.PcieRootBus);
   *EmmcAcpiTable  = NormalizeEmmcAcpiTable (Config.EmmcAcpiTable);
+  *WdtAcpiTable   = (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_2) ?
+                    MONO_WDT_ACPI_TABLE_DEFAULT :
+                    NormalizeWdtAcpiTable (Config.WdtAcpiTable);
 }
 
 STATIC
@@ -464,6 +486,7 @@ BuildRawDsdtTable (
   UINT64                             DeviceMask;
   UINT8                              PcieRootBus;
   UINT8                              EmmcAcpiTable;
+  UINT8                              WdtAcpiTable;
   UINTN                              Index;
 
   ASSERT (This != NULL);
@@ -480,7 +503,7 @@ BuildRawDsdtTable (
   }
 
   CopyMem (PatchList, PatchTemplate, sizeof (PatchList));
-  LoadAcpiDeviceConfig (&DeviceMask, &PcieRootBus, &EmmcAcpiTable);
+  LoadAcpiDeviceConfig (&DeviceMask, &PcieRootBus, &EmmcAcpiTable, &WdtAcpiTable);
 
   PatchList[0].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUart0)) != 0);
   PatchList[1].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUsb0)) != 0);
@@ -493,7 +516,8 @@ BuildRawDsdtTable (
   PatchList[8].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceI2c2)) != 0);
   PatchList[9].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceI2c3)) != 0);
   PatchList[10].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceRtc0)) != 0);
-  PatchList[11].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceWdt0)) != 0);
+  PatchList[11].Enabled = (BOOLEAN)(((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceWdt0)) != 0) &&
+                                    (WdtAcpiTable == MONO_WDT_ACPI_TABLE_NXP));
   PatchList[12].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDevicePcie2)) != 0);
   PatchList[13].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp0)) != 0);
   PatchList[14].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceSfp1)) != 0);
@@ -517,7 +541,7 @@ BuildRawDsdtTable (
   PatchNamedBoolean (Aml, Header->Length, "PRBM", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
   PatchNamedBoolean (Aml, Header->Length, "EMIM", (BOOLEAN)(EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_IMX));
   PatchNamedBoolean (Aml, Header->Length, "EMGS", (BOOLEAN)(EmmcAcpiTable == MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI));
-  DEBUG ((DEBUG_INFO, "MONO ACPI: DSDT PCIe root bus mode=%u eMMC ACPI table=%u\n", PcieRootBus, EmmcAcpiTable));
+  DEBUG ((DEBUG_INFO, "MONO ACPI: DSDT PCIe root bus mode=%u eMMC ACPI table=%u WDT ACPI table=%u\n", PcieRootBus, EmmcAcpiTable, WdtAcpiTable));
 
   *Table = DsdtCopy;
   return EFI_SUCCESS;
