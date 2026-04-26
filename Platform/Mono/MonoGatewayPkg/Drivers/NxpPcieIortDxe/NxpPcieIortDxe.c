@@ -68,6 +68,23 @@ AlignValue (
 }
 
 STATIC
+BOOLEAN
+IsValidFdtInstalled (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+  VOID        *Dtb;
+
+  Status = EfiGetSystemConfigurationTable (&gFdtTableGuid, &Dtb);
+  if (EFI_ERROR (Status) || (Dtb == NULL)) {
+    return FALSE;
+  }
+
+  return (BOOLEAN)(FdtCheckHeader (Dtb) == 0);
+}
+
+STATIC
 EFI_STATUS
 ConnectPciRootBridges (
   VOID
@@ -327,6 +344,11 @@ QuiesceNvmeOnExitBootServices (
 
   (VOID)Event;
   (VOID)Context;
+
+  if (!IsValidFdtInstalled ()) {
+    DEBUG ((DEBUG_INFO, "MONO NVMe: no DTB installed; skipping ExitBootServices quiesce\n"));
+    return;
+  }
 
   Handles = NULL;
   Status = gBS->LocateHandleBuffer (
