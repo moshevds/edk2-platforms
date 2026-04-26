@@ -30,7 +30,8 @@ STATIC CONST CHAR16  *mTableNames[MonoAcpiTableCount] = {
   L"dbg2",
   L"spcr",
   L"pptt",
-  L"dsdt"
+  L"dsdt",
+  L"oemx"
 };
 
 STATIC CONST UINT32  mTableSignatures[MonoAcpiTableCount] = {
@@ -41,7 +42,8 @@ STATIC CONST UINT32  mTableSignatures[MonoAcpiTableCount] = {
   EFI_ACPI_6_2_DEBUG_PORT_2_TABLE_SIGNATURE,
   EFI_ACPI_6_2_SERIAL_PORT_CONSOLE_REDIRECTION_TABLE_SIGNATURE,
   EFI_ACPI_6_2_PROCESSOR_PROPERTIES_TOPOLOGY_TABLE_STRUCTURE_SIGNATURE,
-  EFI_ACPI_6_2_DIFFERENTIATED_SYSTEM_DESCRIPTION_TABLE_SIGNATURE
+  EFI_ACPI_6_2_DIFFERENTIATED_SYSTEM_DESCRIPTION_TABLE_SIGNATURE,
+  SIGNATURE_32 ('O', 'E', 'M', 'X')
 };
 
 typedef struct {
@@ -83,7 +85,17 @@ LoadConfig (
     return Status;
   }
 
-  if ((DataSize != sizeof (*Config)) || (Config->Revision != MONO_ACPI_TABLE_CONFIG_REVISION)) {
+  if (DataSize != sizeof (*Config)) {
+    return EFI_COMPROMISED_DATA;
+  }
+
+  if (Config->Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
+    Config->EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config->EnabledMask);
+    Config->Revision = MONO_ACPI_TABLE_CONFIG_REVISION;
+    return EFI_SUCCESS;
+  }
+
+  if (Config->Revision != MONO_ACPI_TABLE_CONFIG_REVISION) {
     return EFI_COMPROMISED_DATA;
   }
 
@@ -134,7 +146,7 @@ PrintUsage (
   Print (L"Usage: acpicfg status|enable <table|all>|disable <table|all>|reset\r\n");
   Print (L"Disable uninstalls matching live tables immediately when safe.\r\n");
   Print (L"Enable reinstalls tables disabled earlier in this firmware session when possible.\r\n");
-  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt\r\n");
+  Print (L"Tables: fadt gtdt madt mcfg dbg2 spcr pptt dsdt oemx\r\n");
 }
 
 STATIC

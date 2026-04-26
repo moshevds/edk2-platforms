@@ -87,6 +87,7 @@
   gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdStart|11
   gNxpQoriqLsTokenSpaceGuid.PcdPcieStreamIdEnd|26
   gNxpQoriqLsTokenSpaceGuid.PcdPcieTbuMask|0x400
+  gEdkiiDynamicTablesPkgTokenSpaceGuid.PcdMaxCustomACPIGenerators|3
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase|0x09FE800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize|0x00800000
   gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase|0x09FC000000
@@ -113,6 +114,7 @@
       NULL|DynamicTablesPkg/Library/Acpi/Arm/AcpiGtdtLibArm/AcpiGtdtLibArm.inf
       NULL|DynamicTablesPkg/Library/Acpi/Arm/AcpiMadtLibArm/AcpiMadtLibArm.inf
       NULL|DynamicTablesPkg/Library/Acpi/Common/AcpiMcfgLib/AcpiMcfgLib.inf
+      NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiOemxLib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiDbg2Lib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiSpcrLib.inf
       NULL|Platform/Mono/MonoGatewayPkg/AcpiTablesInclude/PlatformAcpiPpttLib.inf

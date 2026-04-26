@@ -57,6 +57,25 @@ STATIC MONO_CONFIG_HII_VENDOR_DEVICE_PATH  mMonoConfigHiiVendorDevicePath = {
 STATIC EFI_HANDLE      mDriverHandle;
 STATIC EFI_HII_HANDLE  mHiiHandle;
 
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
+
+STATIC
+UINT8
+NormalizePcieRootBus (
+  IN UINT8  PcieRootBus
+  )
+{
+  if (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) {
+    return MONO_PCIE_ROOT_BUS_ROOT_PORT;
+  }
+
+  return MONO_PCIE_ROOT_BUS_DOWNSTREAM;
+}
+
 STATIC
 BOOLEAN
 GetMonoConfigVariableInfo (
@@ -243,6 +262,11 @@ MonoConfigRouteConfig (
     return Status;
   }
 
+  if (StrCmp (VariableName, MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME) == 0) {
+    ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->PcieRootBus =
+      NormalizePcieRootBus (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->PcieRootBus);
+  }
+
   return gRT->SetVariable (
                 VariableName,
                 VariableGuid,
@@ -287,6 +311,7 @@ SetDefaultDeviceConfig (
   ZeroMem (Config, sizeof (*Config));
   Config->Revision    = MONO_ACPI_DEVICE_CONFIG_REVISION;
   Config->EnabledMask = MONO_ACPI_DEVICE_MASK_DEFAULT;
+  Config->PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
 }
 
 STATIC
@@ -309,8 +334,14 @@ EnsureTableConfigVariable (
                     );
   if (!EFI_ERROR (Status) &&
       (DataSize == sizeof (Config)) &&
-      (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION))
+      ((Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION) ||
+       (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1)))
   {
+    if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
+      Config.EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config.EnabledMask);
+      Config.Revision = MONO_ACPI_TABLE_CONFIG_REVISION;
+    }
+
     Config.EnabledMask &= MONO_ACPI_TABLE_MASK_ALL;
     return gRT->SetVariable (
                   MONO_ACPI_TABLE_CONFIG_VARIABLE_NAME,
@@ -341,6 +372,7 @@ EnsureDeviceConfigVariable (
   EFI_STATUS               Status;
   UINTN                    DataSize;
 
+  ZeroMem (&Config, sizeof (Config));
   DataSize = sizeof (Config);
   Status   = gRT->GetVariable (
                     MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
@@ -354,6 +386,25 @@ EnsureDeviceConfigVariable (
       (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION))
   {
     Config.EnabledMask &= MONO_ACPI_DEVICE_MASK_ALL;
+    Config.PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
+    return gRT->SetVariable (
+                  MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                  &gMonoGatewayTokenSpaceGuid,
+                  EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS,
+                  sizeof (Config),
+                  &Config
+                  );
+  }
+
+  if (!EFI_ERROR (Status) &&
+      (DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    Config.Revision    = MONO_ACPI_DEVICE_CONFIG_REVISION;
+    Config.Reserved    = 0;
+    Config.EnabledMask = ((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask & MONO_ACPI_DEVICE_MASK_ALL;
+    Config.PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
+    ZeroMem (Config.Reserved1, sizeof (Config.Reserved1));
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
                   &gMonoGatewayTokenSpaceGuid,

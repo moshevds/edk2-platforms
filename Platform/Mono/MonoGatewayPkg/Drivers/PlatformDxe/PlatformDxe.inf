@@ -39,17 +39,25 @@
   UefiBootServicesTableLib
   UefiDriverEntryPoint
   UefiLib
+  UefiRuntimeServicesTableLib
 
 [Guids]
+  gMonoGatewayTokenSpaceGuid
   gNxpNonDiscoverableI2cMasterGuid
   gNxpNonDiscoverableFmanNetGuid
   gNxpNonDiscoverableCaamGuid
 
+[Pcd]
+  gNxpQoriqLsTokenSpaceGuid.PcdPciCfgShiftEnable
+  gNxpQoriqLsTokenSpaceGuid.PcdPciHideRootPort
+
 [Protocols]
   gEdkiiNonDiscoverableDeviceProtocolGuid        ## PRODUCES
   gEfiI2cMasterProtocolGuid                      ## CONSUMES
+  gEfiVariableArchProtocolGuid                   ## CONSUMES
+  gEfiVariableWriteArchProtocolGuid              ## CONSUMES
   gNxpCaamReadyProtocolGuid                      ## PRODUCES
   gMonoGatewayRealTimeClockLibI2cMasterProtocolGuid ## PRODUCES
 
 [Depex]
-  TRUE
+  gEfiVariableArchProtocolGuid AND gEfiVariableWriteArchProtocolGuid

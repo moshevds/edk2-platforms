@@ -78,6 +78,13 @@ MONO_PLATFORM_REPOSITORY_INFO  MonoPlatformRepositoryInfo = {
       NULL,
       CFG_MGR_TABLE_ID
     },
+    {
+      NXP_OEMX_TABLE_SIGNATURE,
+      0,
+      CREATE_OEM_ACPI_TABLE_GEN_ID (PlatAcpiTableIdOemx),
+      NULL,
+      CFG_MGR_TABLE_ID
+    },
   },
   {
     { 0 },
@@ -117,8 +124,15 @@ STATIC CONST CHAR8  *mMonoAcpiTableNames[MonoAcpiTableCount] = {
   "DBG2",
   "SPCR",
   "PPTT",
-  "DSDT"
+  "DSDT",
+  "OEMX"
 };
+
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
 
 STATIC
 UINT64
@@ -226,7 +240,7 @@ LoadAcpiTableMask (
     return GetDefaultAcpiTableMask ();
   }
 
-  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_TABLE_CONFIG_REVISION)) {
+  if (DataSize != sizeof (Config)) {
     DEBUG ((
       DEBUG_WARN,
       "MONO ACPI: ignoring invalid table config variable size=%u revision=%u\n",
@@ -236,7 +250,20 @@ LoadAcpiTableMask (
     return GetDefaultAcpiTableMask ();
   }
 
-  EnabledMask = Config.EnabledMask & MONO_ACPI_TABLE_MASK_ALL;
+  if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION_1) {
+    EnabledMask = MONO_ACPI_TABLE_MIGRATE_REVISION_1 (Config.EnabledMask);
+  } else if (Config.Revision == MONO_ACPI_TABLE_CONFIG_REVISION) {
+    EnabledMask = Config.EnabledMask;
+  } else {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO ACPI: ignoring unsupported table config revision=%u\n",
+      Config.Revision
+      ));
+    return GetDefaultAcpiTableMask ();
+  }
+
+  EnabledMask &= MONO_ACPI_TABLE_MASK_ALL;
   return EnabledMask;
 }
 
@@ -249,7 +276,9 @@ LoadAcpiDeviceMask (
   MONO_ACPI_DEVICE_CONFIG  Config;
   EFI_STATUS               Status;
   UINTN                    DataSize;
+  UINT64                   EnabledMask;
 
+  ZeroMem (&Config, sizeof (Config));
   Config.Revision = 0;
   Config.EnabledMask = 0;
   DataSize = sizeof (Config);
@@ -264,7 +293,15 @@ LoadAcpiDeviceMask (
     return MONO_ACPI_DEVICE_MASK_DEFAULT;
   }
 
-  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+  if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    EnabledMask = ((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask;
+  } else if ((DataSize == sizeof (Config)) &&
+             (Config.Revision == MONO_ACPI_DEVICE_CONFIG_REVISION))
+  {
+    EnabledMask = Config.EnabledMask;
+  } else {
     DEBUG ((
       DEBUG_WARN,
       "MONO ACPI: ignoring invalid device config variable size=%u revision=%u\n",
@@ -274,7 +311,7 @@ LoadAcpiDeviceMask (
     return MONO_ACPI_DEVICE_MASK_DEFAULT;
   }
 
-  return NormalizeAcpiDeviceMask (Config.EnabledMask);
+  return NormalizeAcpiDeviceMask (EnabledMask);
 }
 
 STATIC
@@ -292,7 +329,10 @@ ApplyDeviceTableImplications (
   }
 
   if ((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDevicePcie2)) == 0) {
-    EnabledMask &= ~MONO_ACPI_TABLE_BIT (MonoAcpiTableMcfg);
+    EnabledMask &= ~(
+                     MONO_ACPI_TABLE_BIT (MonoAcpiTableMcfg) |
+                     MONO_ACPI_TABLE_BIT (MonoAcpiTableOemx)
+                     );
   }
 
   return EnabledMask;

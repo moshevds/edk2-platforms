@@ -445,17 +445,18 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     }
 
     /*
-      The LS1046A DesignWare root port is DBI-only and is not visible
-      through generic ECAM. Expose the first downstream bus as the ACPI
-      root bus so OS ECAM access lands on the shifted CFG0 window.
+      The LS1046A DesignWare root port is DBI-only and is not visible through
+      generic ECAM in stock-kernel mode. PRBM chooses whether ACPI exposes the
+      first downstream bus or the NXP-compatible root-port bus.
     */
     Device (PCI2) {
       Name (_HID, EISAID ("PNP0A08"))
       Name (_CID, EISAID ("PNP0A03"))
       Name (_SEG, MONO_PCIE3_SEGMENT)
-      Name (_BBN, MONO_PCIE_OS_BUSNUM_MIN)
+      Name (_BBN, MONO_PCIE_ROOT_BUS_DEFAULT)
       Name (_UID, "PCI2")
       Name (_CCA, One)
+      Name (PRBM, MONO_PCIE_ROOT_BUS_DEFAULT)
 
       MONO_DSDT_STA_FLAG (EPC2)
 
@@ -470,47 +471,90 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
         MONO_PRT_ENTRY (0x0000FFFF, 3, MONO_PCIE3_INTA)
       })
 
+      Name (RB00, ResourceTemplate () {
+        WordBusNumber (
+          ResourceProducer,
+          MinFixed, MaxFixed, PosDecode,
+          0,
+          MONO_PCIE_BUSNUM_MIN,
+          MONO_PCIE_BUSNUM_MAX,
+          0,
+          MONO_PCIE_BUSNUM_COUNT
+        )
+
+        QWordMemory (
+          ResourceProducer, PosDecode,
+          MinFixed, MaxFixed,
+          Cacheable, ReadWrite,
+          0,
+          MONO_PCIE3_MEM_BUS_BASE,
+          MONO_PCIE3_MEM_BUS_LIMIT,
+          MONO_PCIE3_MEM_TRANSLATION,
+          MONO_PCIE3_MEM_SIZE
+        )
+
+        QWordIo (
+          ResourceProducer,
+          MinFixed, MaxFixed,
+          PosDecode,
+          EntireRange,
+          0,
+          0,
+          0xFFFF,
+          MONO_PCIE3_IO_BASE,
+          MONO_PCIE3_IO_SIZE,
+          ,
+          ,
+          ,
+          TypeTranslation
+        )
+      })
+
+      Name (RB01, ResourceTemplate () {
+        WordBusNumber (
+          ResourceProducer,
+          MinFixed, MaxFixed, PosDecode,
+          0,
+          MONO_PCIE_OS_BUSNUM_MIN,
+          MONO_PCIE_BUSNUM_MAX,
+          0,
+          MONO_PCIE_OS_BUSNUM_COUNT
+        )
+
+        QWordMemory (
+          ResourceProducer, PosDecode,
+          MinFixed, MaxFixed,
+          Cacheable, ReadWrite,
+          0,
+          MONO_PCIE3_MEM_BUS_BASE,
+          MONO_PCIE3_MEM_BUS_LIMIT,
+          MONO_PCIE3_MEM_TRANSLATION,
+          MONO_PCIE3_MEM_SIZE
+        )
+
+        QWordIo (
+          ResourceProducer,
+          MinFixed, MaxFixed,
+          PosDecode,
+          EntireRange,
+          0,
+          0,
+          0xFFFF,
+          MONO_PCIE3_IO_BASE,
+          MONO_PCIE3_IO_SIZE,
+          ,
+          ,
+          ,
+          TypeTranslation
+        )
+      })
+
       Method (_CRS, 0, Serialized) {
-        Name (RBUF, ResourceTemplate () {
-          WordBusNumber (
-            ResourceProducer,
-            MinFixed, MaxFixed, PosDecode,
-            0,
-            MONO_PCIE_OS_BUSNUM_MIN,
-            MONO_PCIE_BUSNUM_MAX,
-            0,
-            MONO_PCIE_OS_BUSNUM_COUNT
-          )
+        If (LEqual (PRBM, MONO_PCIE_ROOT_BUS_ROOT_PORT)) {
+          Return (RB00)
+        }
 
-          QWordMemory (
-            ResourceProducer, PosDecode,
-            MinFixed, MaxFixed,
-            Cacheable, ReadWrite,
-            0,
-            MONO_PCIE3_MEM_BUS_BASE,
-            MONO_PCIE3_MEM_BUS_LIMIT,
-            MONO_PCIE3_MEM_TRANSLATION,
-            MONO_PCIE3_MEM_SIZE
-          )
-
-          QWordIo (
-            ResourceProducer,
-            MinFixed, MaxFixed,
-            PosDecode,
-            EntireRange,
-            0,
-            0,
-            0xFFFF,
-            MONO_PCIE3_IO_BASE,
-            MONO_PCIE3_IO_SIZE,
-            ,
-            ,
-            ,
-            TypeTranslation
-          )
-        })
-
-        Return (RBUF)
+        Return (RB01)
       }
 
       Device (RES0) {

@@ -1,0 +1,30 @@
+## @file
+#  Mono Gateway NXP OEMX ACPI table generator
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = MonoPlatformAcpiOemxLib
+  FILE_GUID      = 9f4d1350-7501-45e9-b04a-d979dc48677f
+  VERSION_STRING = 1.0
+  MODULE_TYPE    = DXE_DRIVER
+  LIBRARY_CLASS  = NULL|DXE_DRIVER
+  CONSTRUCTOR    = AcpiOemxLibConstructor
+  DESTRUCTOR     = AcpiOemxLibDestructor
+
+[Sources]
+  PlatformAcpiOemxLib/RawOemxGenerator.c
+
+[Packages]
+  DynamicTablesPkg/DynamicTablesPkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  MemoryAllocationLib

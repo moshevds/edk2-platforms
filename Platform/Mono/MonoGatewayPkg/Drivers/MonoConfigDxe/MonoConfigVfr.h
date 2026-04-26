@@ -28,7 +28,8 @@ typedef struct {
   UINT32    Spcr : 1;
   UINT32    Pptt : 1;
   UINT32    Dsdt : 1;
-  UINT32    Reserved : 24;
+  UINT32    Oemx : 1;
+  UINT32    Reserved : 23;
 } MONO_ACPI_TABLE_CONFIG;
 
 typedef struct {
@@ -59,6 +60,8 @@ typedef struct {
   UINT32    Eth2 : 1;
   UINT32    Eth3 : 1;
   UINT32    Reserved2 : 29;
+  UINT8     PcieRootBus;
+  UINT8     Reserved3[7];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

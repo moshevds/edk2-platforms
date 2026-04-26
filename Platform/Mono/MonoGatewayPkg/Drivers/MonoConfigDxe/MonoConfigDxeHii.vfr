@@ -96,6 +96,12 @@ formset
       help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
+
+    checkbox varid = MonoAcpiTableConfig.Oemx,
+      prompt = STRING_TOKEN (STR_MONO_TABLE_OEMX_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_TABLE_HELP),
+      flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
+    endcheckbox;
   endform;
 
   form formid = MONO_CONFIG_FORM_ID_ACPI_DEVICES,
@@ -181,6 +187,14 @@ formset
       help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
+
+    oneof varid = MonoAcpiDeviceConfig.PcieRootBus,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_PCIE_ROOT_BUS_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_PCIE_ROOT_BUS_HELP),
+      flags  = RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_MONO_DEVICE_PCIE_ROOT_BUS_DOWNSTREAM_OPTION), value = 1, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_PCIE_ROOT_BUS_ROOT_PORT_OPTION), value = 0, flags = 0;
+    endoneof;
 
     checkbox varid = MonoAcpiDeviceConfig.Sfp0,
       prompt = STRING_TOKEN (STR_MONO_DEVICE_SFP0_PROMPT),

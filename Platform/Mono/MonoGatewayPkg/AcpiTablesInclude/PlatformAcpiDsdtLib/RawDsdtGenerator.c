@@ -23,6 +23,25 @@ typedef struct {
   BOOLEAN   Enabled;
 } MONO_DSDT_PATCH_ENTRY;
 
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
+
+STATIC
+UINT8
+NormalizePcieRootBus (
+  IN UINT8  PcieRootBus
+  )
+{
+  if (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) {
+    return MONO_PCIE_ROOT_BUS_ROOT_PORT;
+  }
+
+  return MONO_PCIE_ROOT_BUS_DOWNSTREAM;
+}
+
 STATIC
 UINT64
 NormalizeAcpiDeviceMask (
@@ -57,15 +76,23 @@ NormalizeAcpiDeviceMask (
 }
 
 STATIC
-UINT64
-LoadAcpiDeviceMask (
-  VOID
+VOID
+LoadAcpiDeviceConfig (
+  OUT UINT64  *DeviceMask,
+  OUT UINT8   *PcieRootBus
   )
 {
   MONO_ACPI_DEVICE_CONFIG  Config;
   EFI_STATUS               Status;
   UINTN                    DataSize;
 
+  ASSERT (DeviceMask != NULL);
+  ASSERT (PcieRootBus != NULL);
+
+  *DeviceMask  = MONO_ACPI_DEVICE_MASK_DEFAULT;
+  *PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
+
+  ZeroMem (&Config, sizeof (Config));
   Config.Revision = 0;
   Config.EnabledMask = 0;
   DataSize = sizeof (Config);
@@ -76,14 +103,30 @@ LoadAcpiDeviceMask (
                   &DataSize,
                   &Config
                   );
-  if (EFI_ERROR (Status) ||
-      (DataSize != sizeof (Config)) ||
-      (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION))
+  if (EFI_ERROR (Status))
   {
-    return MONO_ACPI_DEVICE_MASK_DEFAULT;
+    return;
   }
 
-  return NormalizeAcpiDeviceMask (Config.EnabledMask);
+  if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    *DeviceMask = NormalizeAcpiDeviceMask (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->EnabledMask);
+    return;
+  }
+
+  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO ACPI: ignoring invalid DSDT device config size=%u revision=%u\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return;
+  }
+
+  *DeviceMask  = NormalizeAcpiDeviceMask (Config.EnabledMask);
+  *PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
 }
 
 STATIC
@@ -162,6 +205,7 @@ BuildRawDsdtTable (
   EFI_ACPI_DESCRIPTION_HEADER        *DsdtCopy;
   UINT8                              *Aml;
   UINT64                             DeviceMask;
+  UINT8                              PcieRootBus;
   UINTN                              Index;
 
   ASSERT (This != NULL);
@@ -178,7 +222,7 @@ BuildRawDsdtTable (
   }
 
   CopyMem (PatchList, PatchTemplate, sizeof (PatchList));
-  DeviceMask = LoadAcpiDeviceMask ();
+  LoadAcpiDeviceConfig (&DeviceMask, &PcieRootBus);
 
   PatchList[0].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUart0)) != 0);
   PatchList[1].Enabled = (BOOLEAN)((DeviceMask & MONO_ACPI_DEVICE_BIT (MonoAcpiDeviceUsb0)) != 0);
@@ -208,6 +252,10 @@ BuildRawDsdtTable (
   for (Index = 0; Index < ARRAY_SIZE (PatchList); Index++) {
     PatchNamedBoolean (Aml, Header->Length, PatchList[Index].Name, PatchList[Index].Enabled);
   }
+
+  PatchNamedBoolean (Aml, Header->Length, "_BBN", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
+  PatchNamedBoolean (Aml, Header->Length, "PRBM", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
+  DEBUG ((DEBUG_INFO, "MONO ACPI: DSDT PCIe root bus mode=%u\n", PcieRootBus));
 
   *Table = DsdtCopy;
   return EFI_SUCCESS;

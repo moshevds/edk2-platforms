@@ -10,6 +10,7 @@
 typedef enum {
   PlatAcpiTableIdReserved = 0x0000,
   PlatAcpiTableIdDsdt,
+  PlatAcpiTableIdOemx,
   PlatAcpiTableIdMax
 } PLAT_ACPI_TABLE_ID;
 

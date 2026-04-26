@@ -15,10 +15,13 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <IndustryStandard/ArmStdSmc.h>
 #include <Pi/PiI2c.h>
 #include <Soc.h>
+
+#include <MonoAcpiTableConfig.h>
 
 #include <Protocol/I2cMaster.h>
 #include <Protocol/NonDiscoverableDevice.h>
@@ -47,6 +50,12 @@ typedef struct {
   UINTN              OperationCount;
   EFI_I2C_OPERATION  Operation[2];
 } I2C_REQUEST_PACKET_2_OP;
+
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
 
 //
 // Upstream LS1046A headers do not currently publish the I2C controller window
@@ -170,6 +179,94 @@ LogPsciCapabilities (
       (INT64)CpuOnFeatures
       ));
   }
+}
+
+STATIC
+UINT8
+NormalizePcieRootBus (
+  IN UINT8  PcieRootBus
+  )
+{
+  if (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) {
+    return MONO_PCIE_ROOT_BUS_ROOT_PORT;
+  }
+
+  return MONO_PCIE_ROOT_BUS_DOWNSTREAM;
+}
+
+STATIC
+UINT8
+LoadPcieRootBusPolicy (
+  VOID
+  )
+{
+  MONO_ACPI_DEVICE_CONFIG  Config;
+  EFI_STATUS               Status;
+  UINTN                    DataSize;
+
+  ZeroMem (&Config, sizeof (Config));
+  DataSize = sizeof (Config);
+  Status   = gRT->GetVariable (
+                    MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                    &gMonoGatewayTokenSpaceGuid,
+                    NULL,
+                    &DataSize,
+                    &Config
+                    );
+  if (EFI_ERROR (Status)) {
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  if ((DataSize != sizeof (Config)) || (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO PCIe: ignoring invalid device config size=%u revision=%u for root-bus policy\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  return NormalizePcieRootBus (Config.PcieRootBus);
+}
+
+STATIC
+EFI_STATUS
+ApplyPcieRootBusPolicy (
+  VOID
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       PcieRootBus;
+  BOOLEAN     UseShiftedDownstreamBus;
+
+  PcieRootBus             = LoadPcieRootBusPolicy ();
+  UseShiftedDownstreamBus = (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM);
+
+  Status = PcdSetBoolS (PcdPciCfgShiftEnable, UseShiftedDownstreamBus);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = PcdSetBoolS (PcdPciHideRootPort, UseShiftedDownstreamBus);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO PCIe: root-bus=%u cfg-shift=%u hide-root-port=%u\n",
+    PcieRootBus,
+    UseShiftedDownstreamBus,
+    UseShiftedDownstreamBus
+    ));
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -961,6 +1058,12 @@ PlatformDxeEntryPoint (
   EFI_STATUS Status;
   EFI_HANDLE Handle;
   UINT32     Index;
+
+  Status = ApplyPcieRootBusPolicy ();
+  ASSERT_EFI_ERROR (Status);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
 
   LogPsciCapabilities ();
   PopulateI2cInformation ();

@@ -89,7 +89,13 @@ ConnectPciRootBridges (
 
   ReturnStatus = EFI_SUCCESS;
   for (Index = 0; Index < HandleCount; Index++) {
-    Status = gBS->ConnectController (Handles[Index], NULL, NULL, TRUE);
+    //
+    // Only start the PCI bus driver far enough to create PCI_IO child handles
+    // for StreamID discovery. Recursive connect would also bind endpoint
+    // drivers such as NvmExpressDxe, which can leave device-side admin queue
+    // state behind for a later DeviceTree Linux boot.
+    //
+    Status = gBS->ConnectController (Handles[Index], NULL, NULL, FALSE);
     if (EFI_ERROR (Status) && (Status != EFI_ALREADY_STARTED)) {
       DEBUG ((
         DEBUG_WARN,
@@ -376,29 +382,17 @@ PatchFdtPcieNodeMaps (
 
   Status = GetFdtMapPhandle (Dtb, NodeOffset, "msi-map", "msi-parent", &MsiPhandle);
   if (!EFI_ERROR (Status)) {
-    Status = DeleteFdtMapIfPresent (Dtb, NodeOffset, "msi-map");
-    if (EFI_ERROR (Status)) {
-      ReturnStatus = Status;
-    } else {
-      for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
-        Mapping = &StreamIdMap->Mappings[Index];
-        if (Mapping->ControllerIndex != ControllerIndex) {
-          continue;
-        }
-
-        Status = AppendFdtMapEntry (
-                   Dtb,
-                   NodeOffset,
-                   "msi-map",
-                   Mapping->RequesterId,
-                   MsiPhandle,
-                   Mapping->StreamId
-                   );
-        if (EFI_ERROR (Status)) {
-          ReturnStatus = Status;
-        }
-      }
-    }
+    //
+    // Do not rewrite msi-map on the DeviceTree path. Linux already has the
+    // controller-specific MSI wiring from DT; the firmware StreamID map is for
+    // SMMU/IOMMU isolation and for ACPI IORT/OEMX consumers.
+    //
+    DEBUG ((
+      DEBUG_INFO,
+      "MONO FDT: leaving PCIe node %a msi-map unchanged phandle=0x%x\n",
+      (NodeName != NULL) ? NodeName : "<unknown>",
+      MsiPhandle
+      ));
   }
 
   Status = GetFdtMapPhandle (Dtb, NodeOffset, "iommu-map", NULL, &IommuPhandle);

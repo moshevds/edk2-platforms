@@ -80,9 +80,13 @@
 #define MONO_PCIE3_CONFIG_LIMIT  0x500FFFFFFFULL
 #define MONO_PCIE3_SEGMENT       2
 #define MONO_PCIE_BUSNUM_MIN     0x0
+#define MONO_PCIE_BUSNUM_COUNT   0x100
 #define MONO_PCIE_OS_BUSNUM_MIN  0x1
 #define MONO_PCIE_BUSNUM_MAX     0xFF
 #define MONO_PCIE_OS_BUSNUM_COUNT 0xFF
+#define MONO_PCIE_ROOT_BUS_ROOT_PORT           0U
+#define MONO_PCIE_ROOT_BUS_DOWNSTREAM          1U
+#define MONO_PCIE_ROOT_BUS_DEFAULT             MONO_PCIE_ROOT_BUS_DOWNSTREAM
 #define MONO_PCIE3_IO_BASE       0x5000010000ULL
 #define MONO_PCIE3_IO_SIZE       0x10000ULL
 #define MONO_PCIE3_MEM_BUS_BASE  0x40000000ULL
@@ -92,7 +96,15 @@
 #define MONO_PCIE3_MEM_TRANSLATION 0x5000000000ULL
 #define MONO_PCIE3_INTA          186 /* DT SPI 154 -> GIC hwirq 186 (SPI + 32) */
 
-#define OEM_ACPI_TABLES                 1
+#define NXP_OEMX_TABLE_SIGNATURE        SIGNATURE_32 ('O', 'E', 'M', 'X')
+#define NXP_OEMX_MSI_BASE               0x01580000ULL
+#define NXP_OEMX_MSI_LENGTH             0x00010000ULL
+#define NXP_OEMX_MSI_IRQ0               148
+#define NXP_OEMX_MSI_IRQ1               143
+#define NXP_OEMX_MSI_IRQ2               144
+#define NXP_OEMX_MSI_IRQ3               145
+
+#define OEM_ACPI_TABLES                 2
 #define CFG_MGR_TABLE_ID                SIGNATURE_64 ('M', 'O', 'N', 'O', ' ', ' ', ' ', ' ')
 
 #define PLAT_GIC_VERSION                GIC_VERSION

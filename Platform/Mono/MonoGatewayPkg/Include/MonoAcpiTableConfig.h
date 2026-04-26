@@ -12,7 +12,7 @@
 extern EFI_GUID  gMonoGatewayTokenSpaceGuid;
 
 #define MONO_ACPI_TABLE_CONFIG_VARIABLE_NAME  L"MonoAcpiTableConfig"
-#define MONO_ACPI_TABLE_CONFIG_REVISION       1U
+#define MONO_ACPI_TABLE_CONFIG_REVISION       2U
 
 typedef enum {
   MonoAcpiTableFadt = 0,
@@ -23,12 +23,17 @@ typedef enum {
   MonoAcpiTableSpcr,
   MonoAcpiTablePptt,
   MonoAcpiTableDsdt,
+  MonoAcpiTableOemx,
   MonoAcpiTableCount
 } MONO_ACPI_TABLE_ID;
 
 #define MONO_ACPI_TABLE_BIT(TableId)  (1U << (TableId))
 #define MONO_ACPI_TABLE_MASK_ALL      ((1U << MonoAcpiTableCount) - 1U)
 #define MONO_ACPI_TABLE_MASK_DEFAULT  MONO_ACPI_TABLE_MASK_ALL
+#define MONO_ACPI_TABLE_CONFIG_REVISION_1      1U
+#define MONO_ACPI_TABLE_MASK_REVISION_1        ((1U << MonoAcpiTableOemx) - 1U)
+#define MONO_ACPI_TABLE_MIGRATE_REVISION_1(Mask)  \
+  (((Mask) & MONO_ACPI_TABLE_MASK_REVISION_1) | MONO_ACPI_TABLE_BIT (MonoAcpiTableOemx))
 
 #pragma pack(1)
 typedef struct {
@@ -40,7 +45,8 @@ typedef struct {
   UINT32    Spcr : 1;
   UINT32    Pptt : 1;
   UINT32    Dsdt : 1;
-  UINT32    Reserved : 24;
+  UINT32    Oemx : 1;
+  UINT32    Reserved : 23;
 } MONO_ACPI_TABLE_FLAGS;
 #pragma pack()
 
@@ -53,7 +59,12 @@ typedef struct {
 } MONO_ACPI_TABLE_CONFIG;
 
 #define MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME  L"MonoAcpiDeviceConfig"
-#define MONO_ACPI_DEVICE_CONFIG_REVISION       1U
+#define MONO_ACPI_DEVICE_CONFIG_REVISION       2U
+#define MONO_ACPI_DEVICE_CONFIG_REVISION_1     1U
+
+#define MONO_PCIE_ROOT_BUS_ROOT_PORT           0U
+#define MONO_PCIE_ROOT_BUS_DOWNSTREAM          1U
+#define MONO_PCIE_ROOT_BUS_DEFAULT             MONO_PCIE_ROOT_BUS_DOWNSTREAM
 
 typedef enum {
   //
@@ -136,6 +147,8 @@ typedef struct {
     UINT64                    EnabledMask;
     MONO_ACPI_DEVICE_FLAGS    Devices;
   };
+  UINT8     PcieRootBus;
+  UINT8     Reserved1[7];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif
