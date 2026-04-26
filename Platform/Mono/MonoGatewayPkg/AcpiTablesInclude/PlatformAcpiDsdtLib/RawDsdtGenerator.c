@@ -8,6 +8,7 @@
 #include <Library/AcpiLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/I2cLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 
@@ -24,10 +25,33 @@ typedef struct {
 } MONO_DSDT_PATCH_ENTRY;
 
 typedef struct {
+  CHAR8   Name[4];
+  UINT16  Offset;
+} MONO_DSDT_MAC_PATCH_ENTRY;
+
+typedef struct {
   UINT32    Revision;
   UINT32    Reserved;
   UINT64    EnabledMask;
 } MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
+
+#define MONO_GATEWAY_I2C0_PHYS_ADDRESS       0x02180000
+#define MONO_GATEWAY_I2C_SIZE                0x00010000
+#define MONO_GATEWAY_I2C_BASE(Controller) \
+  (MONO_GATEWAY_I2C0_PHYS_ADDRESS + ((Controller) * MONO_GATEWAY_I2C_SIZE))
+#define MONO_GATEWAY_EEPROM_I2C_BASE         MONO_GATEWAY_I2C_BASE (3)
+#define MONO_GATEWAY_EEPROM_I2C_CLOCK_HZ     300000000
+#define MONO_GATEWAY_EEPROM_I2C_BUS_HZ       100000
+#define MONO_GATEWAY_EEPROM_I2C_ADDRESS      0x50
+#define MONO_GATEWAY_EEPROM_ADDRESS_BYTES    2
+
+#define MONO_GATEWAY_EEPROM_MAGIC_OFFSET     0x0000
+#define MONO_GATEWAY_EEPROM_MAC5_OFFSET      0x0068
+#define MONO_GATEWAY_EEPROM_MAC6_OFFSET      0x006E
+#define MONO_GATEWAY_EEPROM_MAC2_OFFSET      0x0074
+#define MONO_GATEWAY_EEPROM_MAC9_OFFSET      0x007A
+#define MONO_GATEWAY_EEPROM_MAC10_OFFSET     0x0080
+#define MONO_GATEWAY_MAC_ADDRESS_SIZE        6
 
 STATIC
 UINT8
@@ -166,6 +190,218 @@ PatchNamedBoolean (
 }
 
 STATIC
+UINTN
+ParseAmlPkgLength (
+  IN CONST UINT8  *Aml,
+  IN UINTN        AmlSize,
+  OUT UINTN       *PkgLength
+  )
+{
+  UINT8  Lead;
+  UINT8  ByteCount;
+  UINTN  Length;
+  UINTN  Index;
+
+  if ((Aml == NULL) || (PkgLength == NULL) || (AmlSize == 0)) {
+    return 0;
+  }
+
+  Lead = Aml[0];
+  ByteCount = (UINT8)(Lead >> 6);
+  if ((UINTN)ByteCount + 1 > AmlSize) {
+    return 0;
+  }
+
+  Length = Lead & ((ByteCount == 0) ? 0x3f : 0x0f);
+  for (Index = 1; Index <= ByteCount; Index++) {
+    Length |= (UINTN)Aml[Index] << (4 + ((Index - 1) * 8));
+  }
+
+  *PkgLength = Length;
+  return (UINTN)ByteCount + 1;
+}
+
+STATIC
+BOOLEAN
+IsValidMacAddress (
+  IN CONST UINT8  *Mac
+  )
+{
+  UINTN    Index;
+  BOOLEAN  AllZero;
+  BOOLEAN  AllOnes;
+
+  AllZero = TRUE;
+  AllOnes = TRUE;
+  for (Index = 0; Index < MONO_GATEWAY_MAC_ADDRESS_SIZE; Index++) {
+    if (Mac[Index] != 0x00) {
+      AllZero = FALSE;
+    }
+
+    if (Mac[Index] != 0xff) {
+      AllOnes = FALSE;
+    }
+  }
+
+  return (BOOLEAN)(!AllZero && !AllOnes && ((Mac[0] & BIT0) == 0));
+}
+
+STATIC
+BOOLEAN
+PatchNamedMacBuffer (
+  IN OUT UINT8        *Aml,
+  IN     UINTN        AmlSize,
+  IN     CONST CHAR8  *Name,
+  IN     CONST UINT8  *Mac
+  )
+{
+  UINTN  Offset;
+  UINTN  PkgLength;
+  UINTN  PkgLengthSize;
+  UINTN  ValueOffset;
+
+  for (Offset = 0; Offset + 5 <= AmlSize; Offset++) {
+    if ((Aml[Offset] != AML_NAME_OP) ||
+        (CompareMem (&Aml[Offset + 1], Name, 4) != 0))
+    {
+      continue;
+    }
+
+    ValueOffset = Offset + 5;
+    if ((ValueOffset >= AmlSize) || (Aml[ValueOffset] != AML_BUFFER_OP)) {
+      DEBUG ((DEBUG_WARN, "MONO ACPI: unsupported AML MAC buffer encoding for %.4a\n", Name));
+      return FALSE;
+    }
+
+    ValueOffset++;
+    PkgLengthSize = ParseAmlPkgLength (&Aml[ValueOffset], AmlSize - ValueOffset, &PkgLength);
+    if (PkgLengthSize == 0) {
+      DEBUG ((DEBUG_WARN, "MONO ACPI: invalid AML package length for MAC %.4a\n", Name));
+      return FALSE;
+    }
+
+    ValueOffset += PkgLengthSize;
+    if (PkgLength < (1 + MONO_GATEWAY_MAC_ADDRESS_SIZE)) {
+      DEBUG ((DEBUG_WARN, "MONO ACPI: AML MAC buffer package too short for %.4a\n", Name));
+      return FALSE;
+    }
+
+    if ((ValueOffset + 2 + MONO_GATEWAY_MAC_ADDRESS_SIZE <= AmlSize) &&
+        (Aml[ValueOffset] == AML_BYTE_PREFIX) &&
+        (Aml[ValueOffset + 1] == MONO_GATEWAY_MAC_ADDRESS_SIZE))
+    {
+      ValueOffset += 2;
+    } else if ((ValueOffset + 1 + MONO_GATEWAY_MAC_ADDRESS_SIZE <= AmlSize) &&
+               (Aml[ValueOffset] == MONO_GATEWAY_MAC_ADDRESS_SIZE))
+    {
+      ValueOffset += 1;
+    } else {
+      DEBUG ((DEBUG_WARN, "MONO ACPI: unsupported AML MAC buffer size encoding for %.4a\n", Name));
+      return FALSE;
+    }
+
+    CopyMem (&Aml[ValueOffset], Mac, MONO_GATEWAY_MAC_ADDRESS_SIZE);
+    return TRUE;
+  }
+
+  DEBUG ((DEBUG_WARN, "MONO ACPI: AML MAC patch point %.4a not found\n", Name));
+  return FALSE;
+}
+
+STATIC
+EFI_STATUS
+ReadGatewayEeprom (
+  IN  UINT16  Offset,
+  OUT UINT8   *Buffer,
+  IN  UINTN   BufferSize
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = I2cInitialize (
+             MONO_GATEWAY_EEPROM_I2C_BASE,
+             MONO_GATEWAY_EEPROM_I2C_CLOCK_HZ,
+             MONO_GATEWAY_EEPROM_I2C_BUS_HZ
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  return I2cBusReadReg (
+           MONO_GATEWAY_EEPROM_I2C_BASE,
+           MONO_GATEWAY_EEPROM_I2C_ADDRESS,
+           Offset,
+           MONO_GATEWAY_EEPROM_ADDRESS_BYTES,
+           Buffer,
+           (UINT32)BufferSize
+           );
+}
+
+STATIC
+VOID
+PatchMacAddressesFromEeprom (
+  IN OUT UINT8  *Aml,
+  IN     UINTN  AmlSize
+  )
+{
+  STATIC CONST MONO_DSDT_MAC_PATCH_ENTRY  MacPatchList[] = {
+    { "M004", MONO_GATEWAY_EEPROM_MAC5_OFFSET  },  // fm1-mac5  / physical port 0 / MAC4
+    { "M005", MONO_GATEWAY_EEPROM_MAC6_OFFSET  },  // fm1-mac6  / physical port 1 / MAC5
+    { "M001", MONO_GATEWAY_EEPROM_MAC2_OFFSET  },  // fm1-mac2  / physical port 2 / MAC1
+    { "M008", MONO_GATEWAY_EEPROM_MAC9_OFFSET  },  // fm1-mac9  / physical port 3 / MA08
+    { "M009", MONO_GATEWAY_EEPROM_MAC10_OFFSET }   // fm1-mac10 / physical port 4 / MA09
+  };
+  EFI_STATUS  Status;
+  UINT8       Magic[4];
+  UINT8       Mac[MONO_GATEWAY_MAC_ADDRESS_SIZE];
+  UINTN       Index;
+
+  Status = ReadGatewayEeprom (MONO_GATEWAY_EEPROM_MAGIC_OFFSET, Magic, sizeof (Magic));
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO ACPI: EEPROM magic read failed: %r\n", Status));
+    return;
+  }
+
+  if ((Magic[0] != 'M') || (Magic[1] != 'A') || (Magic[2] != 'G') || (Magic[3] != 'C')) {
+    DEBUG ((DEBUG_WARN, "MONO ACPI: EEPROM magic invalid, leaving MAC buffers zeroed\n"));
+    return;
+  }
+
+  for (Index = 0; Index < ARRAY_SIZE (MacPatchList); Index++) {
+    Status = ReadGatewayEeprom (MacPatchList[Index].Offset, Mac, sizeof (Mac));
+    if (EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_WARN,
+        "MONO ACPI: EEPROM MAC %.4a read at offset 0x%04x failed: %r\n",
+        MacPatchList[Index].Name,
+        MacPatchList[Index].Offset,
+        Status
+        ));
+      continue;
+    }
+
+    if (!IsValidMacAddress (Mac)) {
+      DEBUG ((
+        DEBUG_WARN,
+        "MONO ACPI: EEPROM MAC %.4a at offset 0x%04x is invalid, leaving buffer zeroed\n",
+        MacPatchList[Index].Name,
+        MacPatchList[Index].Offset
+        ));
+      continue;
+    }
+
+    if (PatchNamedMacBuffer (Aml, AmlSize, MacPatchList[Index].Name, Mac)) {
+      DEBUG ((
+        DEBUG_VERBOSE,
+        "MONO ACPI: patched %.4a from EEPROM offset 0x%04x\n",
+        MacPatchList[Index].Name,
+        MacPatchList[Index].Offset
+        ));
+    }
+  }
+}
+
+STATIC
 EFI_STATUS
 EFIAPI
 BuildRawDsdtTable (
@@ -252,6 +488,8 @@ BuildRawDsdtTable (
   for (Index = 0; Index < ARRAY_SIZE (PatchList); Index++) {
     PatchNamedBoolean (Aml, Header->Length, PatchList[Index].Name, PatchList[Index].Enabled);
   }
+
+  PatchMacAddressesFromEeprom (Aml, Header->Length);
 
   PatchNamedBoolean (Aml, Header->Length, "_BBN", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));
   PatchNamedBoolean (Aml, Header->Length, "PRBM", (BOOLEAN)(PcieRootBus == MONO_PCIE_ROOT_BUS_DOWNSTREAM));

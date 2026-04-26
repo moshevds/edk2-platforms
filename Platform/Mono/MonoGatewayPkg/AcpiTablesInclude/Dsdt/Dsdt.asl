@@ -61,6 +61,47 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
     Name (EN08, One)
     Name (EN09, One)
 
+    Device (PCLK) {
+      Name (_HID, "NXP0017")
+      Name (CLK, ESDHC0_CLOCK)
+      Name (CCLK, Zero)
+      Name (AVBL, Zero)
+      OperationRegion (RCWS, SystemMemory, DCFG_BASE, DCFG_LEN)
+      Method (_REG, 2) {
+        If (LEqual (Arg0, 0x00)) {
+          Store (Arg1, AVBL)
+        }
+      }
+      Field (RCWS, ByteAcc, NoLock, Preserve) {
+        Offset (0x100),
+        RESV, 1,
+        PRAT, 5,
+        PCFG, 2,
+        Offset (0x103),
+        CPRT, 6,
+        Offset (0x13B),
+        HFRQ, 8,
+        RESX, 6,
+        LFRQ, 2
+      }
+
+      Method (_INI, 0, NotSerialized) {
+        Store (ShiftLeft (HFRQ, 2), Local0)
+        Or (Local0, LFRQ, Local0)
+        Multiply (Local0, 500000, Local0)
+        Multiply (Local0, PRAT, Local0)
+        Divide (Local0, 3, , Local0)
+        Store (Local0, CLK)
+
+        Store (ShiftLeft (HFRQ, 2), Local0)
+        Or (Local0, LFRQ, Local0)
+        Multiply (Local0, 500000, Local0)
+        Divide (Local0, 3, , Local0)
+        Divide (Local0, 1000000, , Local0)
+        Multiply (Local0, CPRT, CCLK)
+      }
+    }
+
     Device (C000) {
       Name (_HID, "ACPI0007")
       Name (_UID, MONO_CPU0_UID)
@@ -191,27 +232,34 @@ DefinitionBlock ("DsdtTable.aml", "DSDT", 2, "MONO  ", "MONOGW  ", EFI_ACPI_ARM_
       })
     }
 
-    Device (MMC0) {
-      Name (_HID, "PRP0001")
+    Device (SDC0) {
+      Name (_HID, "NXP0003")
       Name (_UID, Zero)
       Name (_CCA, One)
       MONO_DSDT_STA_FLAG (EMMC)
+      Name (CLK, Zero)
 
-      Name (RBUF, ResourceTemplate () {
+      Name (_CRS, ResourceTemplate () {
         Memory32Fixed (ReadWrite, ESDHC0_BASE, ESDHC_LEN)
         Interrupt (ResourceConsumer, Level, ActiveHigh, Exclusive) { ESDHC0_IT }
       })
 
-      Method (_CRS, 0, Serialized) {
-        Return (RBUF)
+      Method (_INI, 0, NotSerialized) {
+        Store (\_SB.PCLK.CLK, CLK)
       }
 
       Name (_DSD, Package () {
         ToUUID (MONO_DSDT_ACPI_DSD_UUID), Package () {
-          MONO_DSDT_PROP_COMPAT2 ("fsl,ls1046a-esdhc", "fsl,esdhc"),
-          MONO_DSDT_PROP_U32_ARR4 ("voltage-ranges", 1800, 1800, 3300, 3300),
+          MONO_DSDT_PROP_U32 ("big-endian", One),
           MONO_DSDT_PROP_U32 ("bus-width", 4),
-          MONO_DSDT_PROP_U32 ("sdhci,auto-cmd12", One)
+          MONO_DSDT_PROP_U32 ("clock-frequency", CLK),
+          MONO_DSDT_PROP_U32 ("mmc-hs200-1_8v", One),
+          MONO_DSDT_PROP_U32 ("sdhci,auto-cmd12", One),
+          MONO_DSDT_PROP_U32 ("sd-uhs-sdr104", One),
+          MONO_DSDT_PROP_U32 ("sd-uhs-sdr50", One),
+          MONO_DSDT_PROP_U32 ("sd-uhs-sdr25", One),
+          MONO_DSDT_PROP_U32 ("sd-uhs-sdr12", One),
+          MONO_DSDT_PROP_U32_ARR4 ("voltage-ranges", 1800, 1800, 3300, 3300)
         }
       })
     }

@@ -9,6 +9,24 @@
 #include "FmanDxe.h"
 
 #include <Library/DevicePathLib.h>
+#include <Library/I2cLib.h>
+
+#define FMAN_EEPROM_I2C0_PHYS_ADDRESS     0x02180000
+#define FMAN_EEPROM_I2C_SIZE              0x00010000
+#define FMAN_EEPROM_I2C_BASE(Controller) \
+  (FMAN_EEPROM_I2C0_PHYS_ADDRESS + ((Controller) * FMAN_EEPROM_I2C_SIZE))
+#define FMAN_EEPROM_I2C3_BASE             FMAN_EEPROM_I2C_BASE (3)
+#define FMAN_EEPROM_I2C_CLOCK_HZ          300000000
+#define FMAN_EEPROM_I2C_BUS_HZ            100000
+#define FMAN_EEPROM_I2C_ADDRESS           0x50
+#define FMAN_EEPROM_ADDRESS_BYTES         2
+
+#define FMAN_EEPROM_MAGIC_OFFSET          0x0000
+#define FMAN_EEPROM_MAC5_OFFSET           0x0068
+#define FMAN_EEPROM_MAC6_OFFSET           0x006E
+#define FMAN_EEPROM_MAC2_OFFSET           0x0074
+#define FMAN_EEPROM_MAC9_OFFSET           0x007A
+#define FMAN_EEPROM_MAC10_OFFSET          0x0080
 
 STATIC FMAN_DEVICE_PATH mFmanDevicePathTemplate = {
   {
@@ -31,20 +49,32 @@ STATIC FMAN_DEVICE_PATH mFmanDevicePathTemplate = {
 };
 
 STATIC
-VOID
-FmanPopulateFallbackMacAddress (
-  IN OUT FMAN_PRIVATE_DATA  *Private,
-  IN     UINT8              BoardPort
+EFI_STATUS
+FmanReadGatewayEeprom (
+  IN  UINT16  Offset,
+  OUT UINT8   *Buffer,
+  IN  UINTN   BufferSize
   )
 {
-  Private->PortId = BoardPort;
+  EFI_STATUS  Status;
 
-  Private->Mode.CurrentAddress.Addr[0] = 0x02;
-  Private->Mode.CurrentAddress.Addr[1] = 0x4d;
-  Private->Mode.CurrentAddress.Addr[2] = 0x6f;
-  Private->Mode.CurrentAddress.Addr[3] = 0x6e;
-  Private->Mode.CurrentAddress.Addr[4] = 0x6f;
-  Private->Mode.CurrentAddress.Addr[5] = BoardPort;
+  Status = I2cInitialize (
+             FMAN_EEPROM_I2C3_BASE,
+             FMAN_EEPROM_I2C_CLOCK_HZ,
+             FMAN_EEPROM_I2C_BUS_HZ
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  return I2cBusReadReg (
+           FMAN_EEPROM_I2C3_BASE,
+           FMAN_EEPROM_I2C_ADDRESS,
+           Offset,
+           FMAN_EEPROM_ADDRESS_BYTES,
+           Buffer,
+           (UINT32)BufferSize
+           );
 }
 
 STATIC
@@ -169,6 +199,57 @@ FmanIsValidMacAddress (
   }
 
   return !AllZero && !AllBroadcast;
+}
+
+STATIC
+BOOLEAN
+FmanGetEepromMacAddress (
+  IN  UINT8              BoardPort,
+  OUT EFI_MAC_ADDRESS    *MacAddress
+  )
+{
+  STATIC CONST UINT16  MacOffsets[] = {
+    FMAN_EEPROM_MAC5_OFFSET,
+    FMAN_EEPROM_MAC6_OFFSET,
+    FMAN_EEPROM_MAC2_OFFSET,
+    FMAN_EEPROM_MAC9_OFFSET,
+    FMAN_EEPROM_MAC10_OFFSET
+  };
+  EFI_STATUS  Status;
+  UINT8       Magic[4];
+
+  if ((MacAddress == NULL) || (BoardPort >= ARRAY_SIZE (MacOffsets))) {
+    return FALSE;
+  }
+
+  Status = FmanReadGatewayEeprom (FMAN_EEPROM_MAGIC_OFFSET, Magic, sizeof (Magic));
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "FmanDxe: EEPROM magic read failed: %r\n", Status));
+    return FALSE;
+  }
+
+  if ((Magic[0] != 'M') || (Magic[1] != 'A') || (Magic[2] != 'G') || (Magic[3] != 'C')) {
+    DEBUG ((DEBUG_WARN, "FmanDxe: EEPROM magic invalid\n"));
+    return FALSE;
+  }
+
+  Status = FmanReadGatewayEeprom (
+             MacOffsets[BoardPort],
+             MacAddress->Addr,
+             NET_ETHER_ADDR_LEN
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((
+      DEBUG_WARN,
+      "FmanDxe: EEPROM MAC read failed for board port %u offset 0x%04x: %r\n",
+      BoardPort,
+      MacOffsets[BoardPort],
+      Status
+      ));
+    return FALSE;
+  }
+
+  return FmanIsValidMacAddress (MacAddress);
 }
 
 STATIC
@@ -340,26 +421,35 @@ FmanPortIs10g (
 }
 
 STATIC
-VOID
+BOOLEAN
 FmanSelectMacAddress (
   IN OUT FMAN_PRIVATE_DATA  *Private
   )
 {
+  EFI_MAC_ADDRESS  EepromMac;
   EFI_MAC_ADDRESS  VariableMac;
   UINT8            BoardPort;
   CHAR16           VariableName[16];
 
   BoardPort = FmanGetBoardPortNumber (Private);
+  Private->PortId = BoardPort;
+
+  if (FmanGetEepromMacAddress (BoardPort, &EepromMac)) {
+    CopyMem (&Private->Mode.CurrentAddress, &EepromMac, sizeof (EepromMac));
+    CopyMem (&Private->Mode.PermanentAddress, &Private->Mode.CurrentAddress, sizeof (EFI_MAC_ADDRESS));
+    return TRUE;
+  }
+
   UnicodeSPrint (VariableName, sizeof (VariableName), L"MonoNetMac%u", BoardPort);
 
   if (FmanGetVariableMacAddress (VariableName, &VariableMac)) {
-    Private->PortId = BoardPort;
     CopyMem (&Private->Mode.CurrentAddress, &VariableMac, sizeof (VariableMac));
-  } else {
-    FmanPopulateFallbackMacAddress (Private, BoardPort);
+    CopyMem (&Private->Mode.PermanentAddress, &Private->Mode.CurrentAddress, sizeof (EFI_MAC_ADDRESS));
+    return TRUE;
   }
 
-  CopyMem (&Private->Mode.PermanentAddress, &Private->Mode.CurrentAddress, sizeof (EFI_MAC_ADDRESS));
+  DEBUG ((DEBUG_ERROR, "FmanDxe: no valid EEPROM or variable MAC for board port %u\n", BoardPort));
+  return FALSE;
 }
 
 STATIC
@@ -502,7 +592,10 @@ FmanDriverBindingStart (
   Private->PhyPortAddress = FmanGetPhyPortAddress (Private);
 
   SetMem (&Private->Mode.BroadcastAddress, sizeof (EFI_MAC_ADDRESS), 0xff);
-  FmanSelectMacAddress (Private);
+  if (!FmanSelectMacAddress (Private)) {
+    Status = EFI_NOT_FOUND;
+    goto CloseNonDiscoverable;
+  }
 
   Private->DevicePath = AllocateCopyPool (sizeof (FMAN_DEVICE_PATH), &mFmanDevicePathTemplate);
   if (Private->DevicePath == NULL) {

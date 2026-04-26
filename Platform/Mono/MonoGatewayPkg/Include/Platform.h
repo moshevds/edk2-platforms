@@ -32,6 +32,9 @@
 #define UART_LEN          0x100
 #define UART0_CLOCK       300000000
 
+#define DCFG_BASE         0x01EE0000
+#define DCFG_LEN          0xFFF
+
 #define USB0_BASE         0x02F00000
 #define USB0_IT           92  /* DT SPI 60 -> GIC hwirq 92 (SPI + 32) */
 #define USB_LEN           0x10000
@@ -59,6 +62,7 @@
 #define ESDHC0_BASE       0x01560000
 #define ESDHC0_IT         94  /* DT SPI 62 -> GIC hwirq 94 (SPI + 32) */
 #define ESDHC_LEN         0x10000
+#define ESDHC0_CLOCK      300000000
 
 #define FTMRTC0_BASE      0x029D0000
 #define FTMRTC0_IT        118 /* DT SPI 86 -> GIC hwirq 118 (SPI + 32) */

@@ -23,6 +23,7 @@
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   Platform/Mono/MonoGatewayPkg/MonoGatewayPkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
 
 [LibraryClasses]
   BaseLib
@@ -31,6 +32,7 @@
   DevicePathLib
   DxeServicesLib
   FdtLib
+  I2cLib
   MemoryAllocationLib
   PrintLib
   UefiBootManagerLib

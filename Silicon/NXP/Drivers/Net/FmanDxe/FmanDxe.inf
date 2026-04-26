@@ -38,6 +38,7 @@
   DevicePathLib
   DxeServicesLib
   GpioLib
+  I2cLib
   IoLib
   MemoryAllocationLib
   NetLib

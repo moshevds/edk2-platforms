@@ -859,7 +859,7 @@
         Name (_UID, One)
         Name (_CCA, One)
         MONO_STA_FLAG (EN01)
-        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x33)
+        MONO_NAME_MAC6 (M001, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE2000, 0x00001000)
@@ -881,7 +881,7 @@
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
-          MONO_PROP_STR ("local-mac-address", "LMAC")
+          MONO_PROP_STR ("local-mac-address", "M001")
           }
         })
       }
@@ -1008,7 +1008,7 @@
         Name (_UID, 0x04)
         Name (_CCA, One)
         MONO_STA_FLAG (EN04)
-        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x31)
+        MONO_NAME_MAC6 (M004, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AE8000, 0x00001000)
@@ -1030,7 +1030,7 @@
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
-          MONO_PROP_STR ("local-mac-address", "LMAC")
+          MONO_PROP_STR ("local-mac-address", "M004")
           }
         })
       }
@@ -1071,7 +1071,7 @@
         Name (_UID, 0x05)
         Name (_CCA, One)
         MONO_STA_FLAG (EN05)
-        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x32)
+        MONO_NAME_MAC6 (M005, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AEA000, 0x00001000)
@@ -1093,7 +1093,7 @@
             MONO_PROP_STR ("phy-connection-type", "sgmii")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
-          MONO_PROP_STR ("local-mac-address", "LMAC")
+          MONO_PROP_STR ("local-mac-address", "M005")
           }
         })
       }
@@ -1156,7 +1156,7 @@
         Name (_UID, 0x08)
         Name (_CCA, One)
         MONO_STA_FLAG (EN08)
-        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x34)
+        MONO_NAME_MAC6 (M008, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AF0000, 0x00001000)
@@ -1179,7 +1179,7 @@
             MONO_PROP_STR ("managed", "in-band-status")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
-          MONO_PROP_STR ("local-mac-address", "LMAC")
+          MONO_PROP_STR ("local-mac-address", "M008")
           }
         })
       }
@@ -1220,7 +1220,7 @@
         Name (_UID, 0x09)
         Name (_CCA, One)
         MONO_STA_FLAG (EN09)
-        MONO_NAME_MAC6 (LMAC, 0xE8, 0xF6, 0xD7, 0x00, 0x1B, 0x35)
+        MONO_NAME_MAC6 (M009, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
         Name (RBUF, ResourceTemplate () {
           Memory32Fixed (ReadWrite, 0x01AF2000, 0x00001000)
@@ -1243,7 +1243,7 @@
             MONO_PROP_STR ("managed", "in-band-status")
           },
           ToUUID (MONO_ACPI_BUF_UUID), Package (0x01) {
-          MONO_PROP_STR ("local-mac-address", "LMAC")
+          MONO_PROP_STR ("local-mac-address", "M009")
           }
         })
       }
