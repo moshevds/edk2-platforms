@@ -126,6 +126,14 @@
 #define MONO_CPU1_MPIDR                 0x1ULL
 #define MONO_CPU2_MPIDR                 0x2ULL
 #define MONO_CPU3_MPIDR                 0x3ULL
+//
+// ACPI MADT GICC PerformanceInterruptGsiv values are absolute GIC INTIDs.
+// The equivalent DT interrupt specifiers use SPI-local IDs 106, 107, 95, 97.
+//
+#define MONO_CPU0_PMU_GSIV              138
+#define MONO_CPU1_PMU_GSIV              139
+#define MONO_CPU2_PMU_GSIV              127
+#define MONO_CPU3_PMU_GSIV              129
 #define MONO_PSCI_BOOT_ARCH_FLAGS       EFI_ACPI_6_2_ARM_PSCI_COMPLIANT
 #define PLAT_GTBLOCK_COUNT              0
 #define PLAT_GTFRAME_COUNT              0
@@ -159,10 +167,10 @@
 }
 
 #define PLAT_GIC_CPU_INTERFACE    {                         \
-  GICC_ENTRY (MONO_CPU0_UID, MONO_CPU0_MPIDR, 138, 25, 0), \
-  GICC_ENTRY (MONO_CPU1_UID, MONO_CPU1_MPIDR, 139, 25, 0), \
-  GICC_ENTRY (MONO_CPU2_UID, MONO_CPU2_MPIDR, 127, 25, 0), \
-  GICC_ENTRY (MONO_CPU3_UID, MONO_CPU3_MPIDR, 129, 25, 0)  \
+  GICC_ENTRY (MONO_CPU0_UID, MONO_CPU0_MPIDR, MONO_CPU0_PMU_GSIV, 25, 0), \
+  GICC_ENTRY (MONO_CPU1_UID, MONO_CPU1_MPIDR, MONO_CPU1_PMU_GSIV, 25, 0), \
+  GICC_ENTRY (MONO_CPU2_UID, MONO_CPU2_MPIDR, MONO_CPU2_PMU_GSIV, 25, 0), \
+  GICC_ENTRY (MONO_CPU3_UID, MONO_CPU3_MPIDR, MONO_CPU3_PMU_GSIV, 25, 0)  \
 }
 
 #define PLAT_TIMER_BLOCK_INFO  { }
