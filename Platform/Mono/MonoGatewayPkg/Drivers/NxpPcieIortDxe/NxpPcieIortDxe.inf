@@ -36,9 +36,11 @@
 [Protocols]
   gEfiAcpiTableProtocolGuid
   gNxpPcieStreamIdMapProtocolGuid
+  gEfiPciIoProtocolGuid
   gEfiPciRootBridgeIoProtocolGuid
 
 [Guids]
+  gEfiEventExitBootServicesGuid
   gEfiEventReadyToBootGuid
   gFdtTableGuid
 

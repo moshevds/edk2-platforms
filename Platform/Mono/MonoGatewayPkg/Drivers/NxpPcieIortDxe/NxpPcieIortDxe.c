@@ -7,6 +7,8 @@
 #include <PiDxe.h>
 #include <Guid/Fdt.h>
 #include <IndustryStandard/IoRemappingTable.h>
+#include <IndustryStandard/Nvme.h>
+#include <IndustryStandard/Pci.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -19,6 +21,7 @@
 #include <Platform.h>
 #include <Protocol/AcpiTable.h>
 #include <Protocol/NxpPcieStreamIdMap.h>
+#include <Protocol/PciIo.h>
 #include <Protocol/PciRootBridgeIo.h>
 #include <Guid/EventGroup.h>
 
@@ -43,8 +46,10 @@
 #define MONO_ESDHC_STREAM_ID         MONO_LEGACY_STREAM_PREFIX
 #define MONO_USB0_DMA_ADDR_BITS      LS1046A_ADDRESS_SIZE_LIMIT
 #define MONO_ESDHC_DMA_ADDR_BITS     32
+#define MONO_NVME_SHUTDOWN_WAIT_US   1000
 
 STATIC EFI_EVENT  mReadyToBootEvent;
+STATIC EFI_EVENT  mExitBootServicesEvent;
 STATIC BOOLEAN    mIortInstalled;
 
 typedef struct {
@@ -123,6 +128,244 @@ ConnectPciRootBridges (
     ));
 
   return ReturnStatus;
+}
+
+STATIC
+EFI_STATUS
+ReadPciLocation (
+  IN  EFI_PCI_IO_PROTOCOL  *PciIo,
+  OUT UINTN                *Segment,
+  OUT UINTN                *Bus,
+  OUT UINTN                *Device,
+  OUT UINTN                *Function
+  )
+{
+  if ((PciIo == NULL) || (Segment == NULL) || (Bus == NULL) ||
+      (Device == NULL) || (Function == NULL))
+  {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  return PciIo->GetLocation (PciIo, Segment, Bus, Device, Function);
+}
+
+STATIC
+BOOLEAN
+IsNvmePciIo (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       ClassCode[3];
+
+  if (PciIo == NULL) {
+    return FALSE;
+  }
+
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint8,
+                        PCI_CLASSCODE_OFFSET,
+                        sizeof (ClassCode),
+                        ClassCode
+                        );
+  if (EFI_ERROR (Status)) {
+    return FALSE;
+  }
+
+  //
+  // PCI class code is read from offsets 09h..0Bh: prog-if, subclass, base.
+  //
+  return (BOOLEAN)(
+           (ClassCode[2] == PCI_CLASS_MASS_STORAGE) &&
+           (ClassCode[1] == PCI_CLASS_MASS_STORAGE_SOLID_STATE) &&
+           (ClassCode[0] == 0x02)
+           );
+}
+
+STATIC
+EFI_STATUS
+DisableNvmeBusMaster (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      Command;
+
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint16,
+                        PCI_COMMAND_OFFSET,
+                        1,
+                        &Command
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Command &= (UINT16)~EFI_PCI_COMMAND_BUS_MASTER;
+  return PciIo->Pci.Write (
+                       PciIo,
+                       EfiPciIoWidthUint16,
+                       PCI_COMMAND_OFFSET,
+                       1,
+                       &Command
+                       );
+}
+
+STATIC
+EFI_STATUS
+QuiesceNvmeController (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo
+  )
+{
+  EFI_STATUS  Status;
+  UINT32      Cap[2];
+  UINT32      Cc;
+  UINT32      Csts;
+  UINT32      Index;
+  UINT32      Timeout;
+  UINT32      InterruptMask;
+
+  InterruptMask = MAX_UINT32;
+  (VOID)PciIo->Mem.Write (
+                       PciIo,
+                       EfiPciIoWidthUint32,
+                       0,
+                       NVME_INTMS_OFFSET,
+                       1,
+                       &InterruptMask
+                       );
+
+  Status = PciIo->Mem.Read (
+                        PciIo,
+                        EfiPciIoWidthUint32,
+                        0,
+                        NVME_CAP_OFFSET,
+                        ARRAY_SIZE (Cap),
+                        Cap
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = PciIo->Mem.Read (
+                        PciIo,
+                        EfiPciIoWidthUint32,
+                        0,
+                        NVME_CC_OFFSET,
+                        1,
+                        &Cc
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  if ((Cc & BIT0) == 0) {
+    return DisableNvmeBusMaster (PciIo);
+  }
+
+  Cc &= ~BIT0;
+  Status = PciIo->Mem.Write (
+                        PciIo,
+                        EfiPciIoWidthUint32,
+                        0,
+                        NVME_CC_OFFSET,
+                        1,
+                        &Cc
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Timeout = (Cap[0] >> 24) & 0xff;
+  if (Timeout == 0) {
+    Timeout = 1;
+  }
+
+  for (Index = Timeout * 500; Index > 0; Index--) {
+    gBS->Stall (MONO_NVME_SHUTDOWN_WAIT_US);
+
+    Status = PciIo->Mem.Read (
+                          PciIo,
+                          EfiPciIoWidthUint32,
+                          0,
+                          NVME_CSTS_OFFSET,
+                          1,
+                          &Csts
+                          );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    if ((Csts & BIT0) == 0) {
+      return DisableNvmeBusMaster (PciIo);
+    }
+  }
+
+  return EFI_TIMEOUT;
+}
+
+STATIC
+VOID
+EFIAPI
+QuiesceNvmeOnExitBootServices (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_HANDLE           *Handles;
+  EFI_STATUS           Status;
+  EFI_STATUS           QuiesceStatus;
+  EFI_PCI_IO_PROTOCOL  *PciIo;
+  UINTN                HandleCount;
+  UINTN                Index;
+  UINTN                Segment;
+  UINTN                Bus;
+  UINTN                Device;
+  UINTN                Function;
+
+  (VOID)Event;
+  (VOID)Context;
+
+  Handles = NULL;
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEfiPciIoProtocolGuid,
+                  NULL,
+                  &HandleCount,
+                  &Handles
+                  );
+  if (EFI_ERROR (Status)) {
+    return;
+  }
+
+  for (Index = 0; Index < HandleCount; Index++) {
+    Status = gBS->HandleProtocol (
+                    Handles[Index],
+                    &gEfiPciIoProtocolGuid,
+                    (VOID **)&PciIo
+                    );
+    if (EFI_ERROR (Status) || !IsNvmePciIo (PciIo)) {
+      continue;
+    }
+
+    Segment = Bus = Device = Function = 0;
+    (VOID)ReadPciLocation (PciIo, &Segment, &Bus, &Device, &Function);
+
+    QuiesceStatus = QuiesceNvmeController (PciIo);
+    DEBUG ((
+      EFI_ERROR (QuiesceStatus) ? DEBUG_WARN : DEBUG_INFO,
+      "MONO NVMe: ExitBootServices quiesce %04x:%02x:%02x.%x status=%r\n",
+      (UINT32)Segment,
+      (UINT32)Bus,
+      (UINT32)Device,
+      (UINT32)Function,
+      QuiesceStatus
+      ));
+  }
+
+  FreePool (Handles);
 }
 
 STATIC
@@ -380,6 +623,7 @@ PatchFdtPcieNodeMaps (
   CONST CHAR8                           *NodeName;
   UINT32                                MsiPhandle;
   UINT32                                IommuPhandle;
+  BOOLEAN                               MsiMapUpdated;
   UINTN                                 Index;
 
   ReturnStatus = EFI_SUCCESS;
@@ -387,16 +631,45 @@ PatchFdtPcieNodeMaps (
 
   Status = GetFdtMapPhandle (Dtb, NodeOffset, "msi-map", "msi-parent", &MsiPhandle);
   if (!EFI_ERROR (Status)) {
-    //
-    // Do not rewrite msi-map on the DeviceTree path. Linux already has the
-    // controller-specific MSI wiring from DT; the firmware StreamID map is for
-    // SMMU/IOMMU isolation and for ACPI IORT/OEMX consumers.
-    //
+    Status = DeleteFdtMapIfPresent (Dtb, NodeOffset, "msi-map");
+    if (EFI_ERROR (Status)) {
+      ReturnStatus = Status;
+    } else {
+      MsiMapUpdated = FALSE;
+      for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
+        Mapping = &StreamIdMap->Mappings[Index];
+        if (Mapping->ControllerIndex != ControllerIndex) {
+          continue;
+        }
+
+        Status = AppendFdtMapEntry (
+                   Dtb,
+                   NodeOffset,
+                   "msi-map",
+                   Mapping->RequesterId,
+                   MsiPhandle,
+                   Mapping->StreamId
+                   );
+        if (EFI_ERROR (Status)) {
+          ReturnStatus = Status;
+        } else {
+          MsiMapUpdated = TRUE;
+        }
+      }
+
+      DEBUG ((
+        MsiMapUpdated ? DEBUG_INFO : DEBUG_WARN,
+        "MONO FDT: %a PCIe node %a msi-map phandle=0x%x\n",
+        MsiMapUpdated ? "updated" : "did not update",
+        (NodeName != NULL) ? NodeName : "<unknown>",
+        MsiPhandle
+        ));
+    }
+  } else {
     DEBUG ((
-      DEBUG_INFO,
-      "MONO FDT: leaving PCIe node %a msi-map unchanged phandle=0x%x\n",
-      (NodeName != NULL) ? NodeName : "<unknown>",
-      MsiPhandle
+      DEBUG_WARN,
+      "MONO FDT: PCIe node %a has no msi-map or msi-parent\n",
+      (NodeName != NULL) ? NodeName : "<unknown>"
       ));
   }
 
@@ -1031,6 +1304,19 @@ NxpPcieIortDxeInitialize (
                   );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "MONO IORT: failed to register ReadyToBoot event: %r\n", Status));
+    return Status;
+  }
+
+  Status = gBS->CreateEventEx (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_CALLBACK,
+                  QuiesceNvmeOnExitBootServices,
+                  NULL,
+                  &gEfiEventExitBootServicesGuid,
+                  &mExitBootServicesEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "MONO NVMe: failed to register ExitBootServices event: %r\n", Status));
     return Status;
   }
 
