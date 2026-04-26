@@ -37,7 +37,12 @@
 
 #define NXP_PCIE_FDT_COMPATIBLE      "fsl,ls1046a-pcie"
 #define MONO_USB0_ACPI_PATH          "\\_SB_.USB0"
-#define MONO_USB0_STREAM_ID          0x0C00
+#define MONO_ESDHC_ACPI_PATH         "\\_SB_.SDC0"
+#define MONO_LEGACY_STREAM_PREFIX    0x0C00
+#define MONO_USB0_STREAM_ID          MONO_LEGACY_STREAM_PREFIX
+#define MONO_ESDHC_STREAM_ID         MONO_LEGACY_STREAM_PREFIX
+#define MONO_USB0_DMA_ADDR_BITS      LS1046A_ADDRESS_SIZE_LIMIT
+#define MONO_ESDHC_DMA_ADDR_BITS     32
 
 STATIC EFI_EVENT  mReadyToBootEvent;
 STATIC BOOLEAN    mIortInstalled;
@@ -593,6 +598,10 @@ CalculateIortTableSize (
           AlignValue (AsciiStrSize (MONO_USB0_ACPI_PATH), sizeof (UINT32)) +
           sizeof (EFI_ACPI_6_0_IO_REMAPPING_ID_TABLE);
 
+  Size += sizeof (EFI_ACPI_6_0_IO_REMAPPING_NAMED_COMP_NODE) +
+          AlignValue (AsciiStrSize (MONO_ESDHC_ACPI_PATH), sizeof (UINT32)) +
+          sizeof (EFI_ACPI_6_0_IO_REMAPPING_ID_TABLE);
+
   return Size;
 }
 
@@ -745,6 +754,7 @@ FillNamedComponentNode (
   OUT EFI_ACPI_6_0_IO_REMAPPING_ID_TABLE         *IdMappings,
   IN  CONST CHAR8                                *AcpiPath,
   IN  UINT32                                     StreamId,
+  IN  UINT8                                      AddressSizeLimit,
   IN  UINT32                                     SmmuOffset
   )
 {
@@ -778,12 +788,12 @@ FillNamedComponentNode (
   NamedNode->Reserved = EFI_ACPI_RESERVED_WORD;
   NamedNode->MemoryAccessFlags = EFI_ACPI_IORT_MEM_ACCESS_FLAGS_CPM |
                                  EFI_ACPI_IORT_MEM_ACCESS_FLAGS_DACS;
-  NamedNode->AddressSizeLimit = LS1046A_ADDRESS_SIZE_LIMIT;
+  NamedNode->AddressSizeLimit = AddressSizeLimit;
 
   ObjectName = (CHAR8 *)(NamedNode + 1);
   CopyMem (ObjectName, AcpiPath, ObjectNameLength);
 
-  IdMappings->InputBase = 0;
+  IdMappings->InputBase = StreamId;
   IdMappings->NumIds = 0;
   IdMappings->OutputBase = StreamId;
   IdMappings->OutputReference = SmmuOffset;
@@ -791,11 +801,12 @@ FillNamedComponentNode (
 
   DEBUG ((
     DEBUG_ERROR,
-    "MONO IORT: named component %a input=0x%x stream=0x%x output=0x%x\n",
+    "MONO IORT: named component %a input=0x%x stream=0x%x output=0x%x dma-bits=%u\n",
     AcpiPath,
     IdMappings->InputBase,
     StreamId,
-    IdMappings->OutputBase
+    IdMappings->OutputBase,
+    AddressSizeLimit
     ));
 }
 
@@ -840,7 +851,7 @@ BuildIortTable (
     return EFI_OUT_OF_RESOURCES;
   }
 
-  FillIortHeader (Iort, TableSize, (UINT32)(2 + SegmentCount));
+  FillIortHeader (Iort, TableSize, (UINT32)(3 + SegmentCount));
 
   Cursor = (UINT8 *)Iort + sizeof (*Iort);
   SmmuOffset = (UINT32)(Cursor - (UINT8 *)Iort);
@@ -874,6 +885,23 @@ BuildIortTable (
     IdMappings,
     MONO_USB0_ACPI_PATH,
     MONO_USB0_STREAM_ID,
+    MONO_USB0_DMA_ADDR_BITS,
+    SmmuOffset
+    );
+  Cursor += NamedNode->Node.Length;
+
+  NamedNode = (EFI_ACPI_6_0_IO_REMAPPING_NAMED_COMP_NODE *)Cursor;
+  IdMappings = (EFI_ACPI_6_0_IO_REMAPPING_ID_TABLE *)(
+                 Cursor +
+                 sizeof (*NamedNode) +
+                 AlignValue (AsciiStrSize (MONO_ESDHC_ACPI_PATH), sizeof (UINT32))
+                 );
+  FillNamedComponentNode (
+    NamedNode,
+    IdMappings,
+    MONO_ESDHC_ACPI_PATH,
+    MONO_ESDHC_STREAM_ID,
+    MONO_ESDHC_DMA_ADDR_BITS,
     SmmuOffset
     );
   Cursor += NamedNode->Node.Length;
