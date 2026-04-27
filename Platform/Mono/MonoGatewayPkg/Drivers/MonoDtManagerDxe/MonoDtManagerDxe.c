@@ -61,10 +61,12 @@
 
 #define MONO_DT_CAAM_BASE                  0x01700000
 #define MONO_DT_CAAM_MCFGR_OFFSET          0x00000004
+#define MONO_DT_CAAM_SCFGR_OFFSET          0x0000000C
 #define MONO_DT_CAAM_JR_LIODNR_MS_OFFSET   0x00000010
 #define MONO_DT_CAAM_JR_LIODNR_LS_OFFSET   0x00000014
 #define MONO_DT_CAAM_RTIC_LIODNR_LS_OFFSET 0x00000064
 #define MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET 0x000000A4
+#define MONO_DT_CAAM_CTPR_MS_OFFSET        0x00000FA8
 #define MONO_DT_CAAM_LIODNR_STRIDE         0x8
 #define MONO_DT_CAAM_QILCR_LS_OFFSET       0x00070024
 #define MONO_DT_CAAM_MCFGR_PS_SHIFT        16
@@ -368,6 +370,40 @@ PatchDtbSecIcidValue (
 
 STATIC
 VOID
+PatchDtbLogCaamHandoffState (
+  IN CONST CHAR8  *Phase
+  )
+{
+  UINTN  Index;
+  UINTN  JrLiodnrLs;
+  UINTN  JrLiodnrMs;
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MonoDtManagerDxe: CAAM %a mcfgr=0x%08x scfgr=0x%08x ctpr_ms=0x%08x qilcr_ls=0x%08x\n",
+    Phase,
+    MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_MCFGR_OFFSET)),
+    MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET)),
+    MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_CTPR_MS_OFFSET)),
+    MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_QILCR_LS_OFFSET))
+    ));
+
+  for (Index = 0; Index < 4; Index++) {
+    JrLiodnrMs = MONO_DT_CAAM_BASE + MONO_DT_CAAM_JR_LIODNR_MS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE);
+    JrLiodnrLs = MONO_DT_CAAM_BASE + MONO_DT_CAAM_JR_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE);
+    DEBUG ((
+      DEBUG_INFO,
+      "MonoDtManagerDxe: CAAM %a jr%u liodnr_ms=0x%08x liodnr_ls=0x%08x\n",
+      Phase,
+      Index,
+      MmioRead32Be (JrLiodnrMs),
+      MmioRead32Be (JrLiodnrLs)
+      ));
+  }
+}
+
+STATIC
+VOID
 PatchDtbSetupDpaa1Icids (
   VOID
   )
@@ -376,6 +412,8 @@ PatchDtbSetupDpaa1Icids (
   UINTN   Index;
   UINT32  Mcfgr;
   UINT32  StreamId;
+
+  PatchDtbLogCaamHandoffState ("before");
 
   //
   // Mirror U-Boot's CAAM master configuration handoff. Linux samples
@@ -425,6 +463,8 @@ PatchDtbSetupDpaa1Icids (
       PatchDtbSecIcidValue (StreamId)
       );
   }
+
+  PatchDtbLogCaamHandoffState ("after");
 }
 
 STATIC
