@@ -17,6 +17,7 @@
 #include <Library/DxeServicesLib.h>
 #include <Library/FdtLib.h>
 #include <Library/I2cLib.h>
+#include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiBootManagerLib.h>
@@ -57,6 +58,36 @@
 #define MONO_DT_EEPROM_MAC9_OFFSET         0x007A
 #define MONO_DT_EEPROM_MAC10_OFFSET        0x0080
 #define MONO_DT_MAC_ADDRESS_SIZE           6
+
+#define MONO_DT_CAAM_BASE                  0x01700000
+#define MONO_DT_CAAM_JR_LIODNR_LS_OFFSET   0x00000014
+#define MONO_DT_CAAM_RTIC_LIODNR_LS_OFFSET 0x00000064
+#define MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET 0x000000A4
+#define MONO_DT_CAAM_LIODNR_STRIDE         0x8
+#define MONO_DT_CAAM_QILCR_LS_OFFSET       0x00070024
+#define MONO_DT_QMAN_BASE                  0x01880000
+#define MONO_DT_BMAN_BASE                  0x01890000
+#define MONO_DT_QBMAN_LIODNR_OFFSET        0x00000D08
+#define MONO_DT_QBMAN_IP_REV_1_OFFSET      0x00000BF8
+#define MONO_DT_QBMAN_IP_REV_2_OFFSET      0x00000BFC
+#define MONO_DT_QMAN_QCSP_BARE_OFFSET      0x00000C80
+#define MONO_DT_QMAN_QCSP_BAR_OFFSET       0x00000C84
+#define MONO_DT_QMAN_REV3_QCSP_LIO_CFG     0x00001000
+#define MONO_DT_QMAN_REV3_QCSP_IO_CFG      0x00001004
+#define MONO_DT_QBMAN_QCSP_STRIDE          0x10
+#define MONO_DT_QBMAN_PORTAL_COUNT         10
+#define MONO_DT_QMAN_PORTAL_BASE           0x500000000ULL
+#define MONO_DT_QMAN_PORTAL_SIZE           0x08000000ULL
+#define MONO_DT_QMAN_PORTAL_CINH_BASE      (MONO_DT_QMAN_PORTAL_BASE + (MONO_DT_QMAN_PORTAL_SIZE / 2))
+#define MONO_DT_QMAN_PORTAL_CINH_STRIDE    0x00010000
+#define MONO_DT_QMAN_PORTAL_ISDR_OFFSET    0x00003680
+#define MONO_DT_BMAN_PORTAL_BASE           0x508000000ULL
+#define MONO_DT_BMAN_PORTAL_SIZE           0x08000000ULL
+#define MONO_DT_BMAN_PORTAL_CINH_BASE      (MONO_DT_BMAN_PORTAL_BASE + (MONO_DT_BMAN_PORTAL_SIZE / 2))
+#define MONO_DT_BMAN_PORTAL_CINH_STRIDE    0x00010000
+#define MONO_DT_BMAN_PORTAL_ISDR_OFFSET    0x00003E80
+#define MONO_DT_DPAA1_STREAM_ID_START      27
+#define MONO_DT_DPAA1_STREAM_ID_END        63
 
 typedef struct {
   CONST CHAR8  *Path;
@@ -301,6 +332,226 @@ PatchDtbMacAddressesFromEeprom (
 }
 
 STATIC
+UINT32
+MmioRead32Be (
+  IN UINTN  Address
+  )
+{
+  return SwapBytes32 (MmioRead32 (Address));
+}
+
+STATIC
+VOID
+MmioWrite32Be (
+  IN UINTN   Address,
+  IN UINT32  Value
+  )
+{
+  MmioWrite32 (Address, SwapBytes32 (Value));
+}
+
+STATIC
+UINT32
+PatchDtbSecIcidValue (
+  IN UINT32  StreamId
+  )
+{
+  return (StreamId << 16) | StreamId;
+}
+
+STATIC
+VOID
+PatchDtbSetupDpaa1Icids (
+  VOID
+  )
+{
+  UINTN   Index;
+  UINT32  StreamId;
+
+  MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START);
+  MmioWrite32Be ((UINTN)(MONO_DT_BMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START + 1);
+
+  //
+  // Mirror U-Boot's LS1046A ICID table. On LSCH2, SEC QI uses a zero QILCR
+  // value while the QMan portal frame/data LIODNs carry stream ID 63.
+  //
+  MmioWrite32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_QILCR_LS_OFFSET), 0);
+
+  for (Index = 0; Index < 4; Index++) {
+    StreamId = MONO_DT_DPAA1_STREAM_ID_START + 3 + (UINT32)Index;
+    MmioWrite32Be (
+      (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_JR_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE)),
+      PatchDtbSecIcidValue (StreamId)
+      );
+
+    StreamId = MONO_DT_DPAA1_STREAM_ID_START + 7 + (UINT32)Index;
+    MmioWrite32Be (
+      (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_RTIC_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE)),
+      PatchDtbSecIcidValue (StreamId)
+      );
+  }
+
+  for (Index = 0; Index < 3; Index++) {
+    StreamId = MONO_DT_DPAA1_STREAM_ID_START + 11 + (UINT32)Index;
+    MmioWrite32Be (
+      (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE)),
+      PatchDtbSecIcidValue (StreamId)
+      );
+  }
+}
+
+STATIC
+VOID
+PatchDtbSetupQbmanPortals (
+  VOID
+  )
+{
+  UINTN   Index;
+  UINT32  Rev1;
+  UINTN   QcspBase;
+
+  Rev1 = MmioRead32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QBMAN_IP_REV_1_OFFSET));
+
+  MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QMAN_QCSP_BARE_OFFSET), (UINT32)(MONO_DT_QMAN_PORTAL_BASE >> 32));
+  MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QMAN_QCSP_BAR_OFFSET), (UINT32)MONO_DT_QMAN_PORTAL_BASE);
+
+  if (((Rev1 >> 8) & 0xFF) >= 3) {
+    QcspBase = MONO_DT_QMAN_BASE + MONO_DT_QMAN_REV3_QCSP_LIO_CFG;
+  } else {
+    QcspBase = MONO_DT_QMAN_BASE;
+  }
+
+  for (Index = 0; Index < MONO_DT_QBMAN_PORTAL_COUNT; Index++) {
+    MmioWrite32Be (
+      QcspBase + (Index * MONO_DT_QBMAN_QCSP_STRIDE),
+      (MONO_DT_DPAA1_STREAM_ID_END << 16) | MONO_DT_DPAA1_STREAM_ID_END
+      );
+    MmioWrite32Be (
+      QcspBase + (Index * MONO_DT_QBMAN_QCSP_STRIDE) + (MONO_DT_QMAN_REV3_QCSP_IO_CFG - MONO_DT_QMAN_REV3_QCSP_LIO_CFG),
+      MONO_DT_DPAA1_STREAM_ID_END
+      );
+  }
+
+  // Mirror U-Boot inhibit_portals(); ArmPlatformLib maps these high portal
+  // apertures as device memory for the DT handoff path.
+  for (Index = 0; Index < MONO_DT_QBMAN_PORTAL_COUNT; Index++) {
+    MmioWrite32Be (
+      (UINTN)(MONO_DT_QMAN_PORTAL_CINH_BASE + (Index * MONO_DT_QMAN_PORTAL_CINH_STRIDE) + MONO_DT_QMAN_PORTAL_ISDR_OFFSET),
+      MAX_UINT32
+      );
+    MmioWrite32Be (
+      (UINTN)(MONO_DT_BMAN_PORTAL_CINH_BASE + (Index * MONO_DT_BMAN_PORTAL_CINH_STRIDE) + MONO_DT_BMAN_PORTAL_ISDR_OFFSET),
+      MAX_UINT32
+      );
+  }
+}
+
+STATIC
+VOID
+PatchDtbSetEmptyProp (
+  IN OUT VOID  *Dtb,
+  IN     CHAR8 *Path,
+  IN     CHAR8 *Property
+  )
+{
+  INT32  Node;
+  INT32  FdtStatus;
+
+  Node = FdtPathOffset (Dtb, Path);
+  if (Node < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: DT node %a not found\n", Path));
+    return;
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, Property, NULL, 0);
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set %a/%a: %a\n", Path, Property, FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+VOID
+__attribute__((unused))
+PatchDtbDeletePropIfPresent (
+  IN OUT VOID  *Dtb,
+  IN     CHAR8 *Path,
+  IN     CHAR8 *Property
+  )
+{
+  INT32  Node;
+  INT32  FdtStatus;
+
+  Node = FdtPathOffset (Dtb, Path);
+  if (Node < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: DT node %a not found\n", Path));
+    return;
+  }
+
+  FdtStatus = FdtDelProp (Dtb, Node, Property);
+  if ((FdtStatus != 0) && (FdtStatus != -FDT_ERR_NOTFOUND)) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to delete %a/%a: %a\n", Path, Property, FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+VOID
+PatchDtbQbmanPortalCompatible (
+  IN OUT VOID        *Dtb,
+  IN     CONST CHAR8 *PortalCompatible,
+  IN     CONST CHAR8 *VersionedCompatiblePrefix,
+  IN     UINT64      Base
+  )
+{
+  CHAR8   Compatible[64];
+  UINT32  CompatibleLength;
+  INT32   FdtStatus;
+  UINT32  IpCfg;
+  UINT32  Major;
+  UINT32  Minor;
+  INT32   Node;
+  UINT32  Rev1;
+  UINT32  Rev2;
+
+  Rev1 = SwapBytes32 (MmioRead32 ((UINTN)(Base + MONO_DT_QBMAN_IP_REV_1_OFFSET)));
+  Rev2 = SwapBytes32 (MmioRead32 ((UINTN)(Base + MONO_DT_QBMAN_IP_REV_2_OFFSET)));
+
+  Major = (Rev1 >> 8) & 0xFF;
+  Minor = Rev1 & 0xFF;
+  IpCfg = Rev2 & 0xFF;
+
+  CompatibleLength = AsciiSPrint (
+                       Compatible,
+                       sizeof (Compatible),
+                       "%a-%u.%u.%u",
+                       VersionedCompatiblePrefix,
+                       Major,
+                       Minor,
+                       IpCfg
+                       ) + 1;
+  CompatibleLength += AsciiSPrint (
+                        Compatible + CompatibleLength,
+                        sizeof (Compatible) - CompatibleLength,
+                        "%a",
+                        PortalCompatible
+                        ) + 1;
+
+  for (Node = FdtNodeOffsetByCompatible (Dtb, -1, PortalCompatible);
+       Node >= 0;
+       Node = FdtNodeOffsetByCompatible (Dtb, Node, PortalCompatible))
+  {
+    FdtStatus = FdtSetProp (Dtb, Node, "compatible", Compatible, CompatibleLength);
+    if (FdtStatus != 0) {
+      DEBUG ((
+        DEBUG_WARN,
+        "MonoDtManagerDxe: failed to set %a compatible: %a\n",
+        PortalCompatible,
+        FdtStrerror (FdtStatus)
+        ));
+    }
+  }
+}
+
+STATIC
 VOID
 PatchDtbCaam (
   IN OUT VOID  *Dtb
@@ -309,16 +560,19 @@ PatchDtbCaam (
   INT32  Node;
   INT32  FdtStatus;
 
-  Node = FdtPathOffset (Dtb, "/soc/crypto@1700000");
-  if (Node < 0) {
-    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM DT node not found\n"));
-    return;
-  }
+  PatchDtbSetupDpaa1Icids ();
+  PatchDtbSetupQbmanPortals ();
 
-  FdtStatus = FdtSetProp (Dtb, Node, "big-endian", NULL, 0);
-  if (FdtStatus != 0) {
-    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set CAAM big-endian: %a\n", FdtStrerror (FdtStatus)));
-  }
+  PatchDtbSetEmptyProp (Dtb, "/soc/crypto@1700000", "big-endian");
+  PatchDtbSetEmptyProp (Dtb, "/soc/qman@1880000", "big-endian");
+  PatchDtbSetEmptyProp (Dtb, "/soc/bman@1890000", "big-endian");
+  PatchDtbSetEmptyProp (Dtb, "/soc/crypto@1700000", "dma-coherent");
+  PatchDtbSetEmptyProp (Dtb, "/soc/qman@1880000", "dma-coherent");
+  PatchDtbSetEmptyProp (Dtb, "/soc/bman@1890000", "dma-coherent");
+  PatchDtbSetEmptyProp (Dtb, "/soc/qman-portals-bus@500000000", "dma-coherent");
+  PatchDtbSetEmptyProp (Dtb, "/soc/bman-portals-bus@508000000", "dma-coherent");
+  PatchDtbQbmanPortalCompatible (Dtb, "fsl,qman-portal", "fsl,qman-portal", MONO_DT_QMAN_BASE);
+  PatchDtbQbmanPortalCompatible (Dtb, "fsl,bman-portal", "fsl,bman-portal", MONO_DT_BMAN_BASE);
 
   Node = FdtPathOffset (Dtb, "/soc/crypto@1700000/jr@40000");
   if (Node < 0) {

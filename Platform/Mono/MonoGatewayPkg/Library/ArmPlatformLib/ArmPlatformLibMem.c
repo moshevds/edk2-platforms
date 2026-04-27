@@ -12,7 +12,11 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Soc.h>
 
-#define MAX_VIRTUAL_MEMORY_MAP_DESCRIPTORS          8
+#define MAX_VIRTUAL_MEMORY_MAP_DESCRIPTORS          10
+
+#define MONO_QMAN_PORTAL_PHYS_ADDRESS               0x500000000ULL
+#define MONO_BMAN_PORTAL_PHYS_ADDRESS               0x508000000ULL
+#define MONO_QBMAN_PORTAL_SIZE                      0x08000000ULL
 
 /**
   Return the Virtual Memory Map of your platform
@@ -80,6 +84,18 @@ ArmPlatformGetVirtualMemoryMap (
   VirtualMemoryTable[Index].PhysicalBase = LS1046A_PCI2_PHYS_ADDRESS;
   VirtualMemoryTable[Index].VirtualBase  = LS1046A_PCI2_PHYS_ADDRESS;
   VirtualMemoryTable[Index].Length       = LS1046A_PCI_SIZE;
+  VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
+
+  // QMan/BMan portal windows. The DT handoff path mirrors U-Boot's portal
+  // inhibition writes through the high CInhibit aperture.
+  VirtualMemoryTable[Index].PhysicalBase = MONO_QMAN_PORTAL_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].VirtualBase  = MONO_QMAN_PORTAL_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].Length       = MONO_QBMAN_PORTAL_SIZE;
+  VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
+
+  VirtualMemoryTable[Index].PhysicalBase = MONO_BMAN_PORTAL_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].VirtualBase  = MONO_BMAN_PORTAL_PHYS_ADDRESS;
+  VirtualMemoryTable[Index].Length       = MONO_QBMAN_PORTAL_SIZE;
   VirtualMemoryTable[Index++].Attributes = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
 
   // End of Table

@@ -33,6 +33,7 @@
   DxeServicesLib
   FdtLib
   I2cLib
+  IoLib
   MemoryAllocationLib
   PrintLib
   UefiBootManagerLib
