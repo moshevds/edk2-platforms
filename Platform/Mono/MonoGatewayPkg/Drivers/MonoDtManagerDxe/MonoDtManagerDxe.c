@@ -73,6 +73,7 @@
 #define MONO_DT_CAAM_MCFGR_PS_SHIFT        16
 #define MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT   8
 #define MONO_DT_CAAM_MCFGR_AWCACHE_MASK    (0xFU << MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT)
+#define MONO_DT_CAAM_SCFGR_VIRT_EN         0x00008000U
 #define MONO_DT_CAAM_JR_LIODNR_MS_JROWN_NS BIT3
 #define MONO_DT_CAAM_JR_LIODNR_MS_JRMID_NS BIT0
 #define MONO_DT_CAAM_JR0_BASE              0x01710000
@@ -469,6 +470,7 @@ PatchDtbSetupDpaa1Icids (
   UINTN   JrLiodnrMs;
   UINTN   Index;
   UINT32  Mcfgr;
+  UINT32  Scfgr;
   EFI_STATUS Status;
   UINT32  StreamId;
 
@@ -489,6 +491,17 @@ PatchDtbSetupDpaa1Icids (
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM JR0 reset failed: %r\n", Status));
   }
+
+  //
+  // On this LS1046A, CTPR reports virtualization support but not
+  // virtualization enabled at POR. U-Boot and Linux both require SCFGR_VIRT_EN
+  // in that state before they start CAAM job rings.
+  //
+  Scfgr = MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET));
+  MmioWrite32Be (
+    (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET),
+    Scfgr | MONO_DT_CAAM_SCFGR_VIRT_EN
+    );
 
   MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START);
   MmioWrite32Be ((UINTN)(MONO_DT_BMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START + 1);
