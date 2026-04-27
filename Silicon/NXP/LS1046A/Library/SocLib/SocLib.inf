@@ -21,8 +21,10 @@
   Silicon/NXP/NxpQoriqLs.dec
 
 [LibraryClasses]
+  BaseLib
   ChassisLib
   DebugLib
+  IoLib
 
 [Sources.common]
   SocLib.c

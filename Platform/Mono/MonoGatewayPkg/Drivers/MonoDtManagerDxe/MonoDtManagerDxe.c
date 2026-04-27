@@ -498,10 +498,21 @@ PatchDtbSetupDpaa1Icids (
   // in that state before they start CAAM job rings.
   //
   Scfgr = MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET));
+  DEBUG ((
+    DEBUG_INFO,
+    "MonoDtManagerDxe: CAAM SCFGR before virt enable write=0x%08x target=0x%08x\n",
+    Scfgr,
+    Scfgr | MONO_DT_CAAM_SCFGR_VIRT_EN
+    ));
   MmioWrite32Be (
     (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET),
     Scfgr | MONO_DT_CAAM_SCFGR_VIRT_EN
     );
+  DEBUG ((
+    DEBUG_INFO,
+    "MonoDtManagerDxe: CAAM SCFGR after virt enable write=0x%08x\n",
+    MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SCFGR_OFFSET))
+    ));
 
   MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START);
   MmioWrite32Be ((UINTN)(MONO_DT_BMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START + 1);

@@ -12,6 +12,7 @@
 
 #define  NXP_LAYERSCAPE_CHASSIS2_DCFG_ADDRESS  0x1EE0000
 #define  NXP_LAYERSCAPE_CHASSIS2_SCFG_ADDRESS  0x1570000
+#define  NXP_LAYERSCAPE_CHASSIS2_CSU_ADDRESS   0x1510000
 
 #define SVR_SOC_VER(svr)            (((svr) >> 8) & 0xFFFFFE)
 #define SVR_MAJOR(svr)              (((svr) >> 4) & 0xf)

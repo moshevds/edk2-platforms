@@ -10,16 +10,106 @@
 #include <Base.h>
 #include <Library/ChassisLib.h>
 #include <Library/DebugLib.h>
+#include <Library/BaseLib.h>
+#include <Library/IoLib.h>
 #include <Library/SerDes.h>
 #include <Library/SocLib.h>
 #include <SocSerDes.h>
 #include <Soc.h>
+
+#define LS1046A_CSU_ALL_RW             0xFFU
+#define LS1046A_CSU_CSL_VALUE_MASK     0x0000FFFFU
 
 #define LS1046A_SERDES1_PROTOCOL_MASK   0xffff0000
 #define LS1046A_SERDES1_PROTOCOL_SHIFT  16
 #define LS1046A_SERDES2_PROTOCOL_MASK   0x0000ffff
 #define LS1046A_SERDES2_PROTOCOL_SHIFT  0
 #define LS1046A_SERDES_LANES            4
+
+typedef struct {
+  UINT8 Index;
+  UINT8 Access;
+} LS1046A_CSU_ACCESS;
+
+STATIC CONST LS1046A_CSU_ACCESS mLs1046aCsuNsAccessTable[] = {
+  { 0,   LS1046A_CSU_ALL_RW },  // PCIE2_IO
+  { 1,   LS1046A_CSU_ALL_RW },  // PCIE1_IO
+  { 2,   LS1046A_CSU_ALL_RW },  // MG2TPR_IP
+  { 3,   LS1046A_CSU_ALL_RW },  // IFC_MEM
+  { 4,   LS1046A_CSU_ALL_RW },  // OCRAM
+  { 5,   LS1046A_CSU_ALL_RW },  // GIC
+  { 6,   LS1046A_CSU_ALL_RW },  // PCIE1
+  { 7,   LS1046A_CSU_ALL_RW },  // OCRAM2
+  { 8,   LS1046A_CSU_ALL_RW },  // QSPI_MEM
+  { 9,   LS1046A_CSU_ALL_RW },  // PCIE2
+  { 10,  LS1046A_CSU_ALL_RW },  // SATA
+  { 11,  LS1046A_CSU_ALL_RW },  // USB1
+  { 12,  LS1046A_CSU_ALL_RW },  // QM_BM_SWPORTAL
+  { 16,  LS1046A_CSU_ALL_RW },  // PCIE3
+  { 17,  LS1046A_CSU_ALL_RW },  // PCIE3_IO
+  { 20,  LS1046A_CSU_ALL_RW },  // USB3
+  { 21,  LS1046A_CSU_ALL_RW },  // USB2
+  { 23,  LS1046A_CSU_ALL_RW },  // PFE
+  { 32,  LS1046A_CSU_ALL_RW },  // SERDES
+  { 33,  LS1046A_CSU_ALL_RW },  // QDMA
+  { 34,  LS1046A_CSU_ALL_RW },  // LPUART2
+  { 35,  LS1046A_CSU_ALL_RW },  // LPUART1
+  { 36,  LS1046A_CSU_ALL_RW },  // LPUART4
+  { 37,  LS1046A_CSU_ALL_RW },  // LPUART3
+  { 38,  LS1046A_CSU_ALL_RW },  // LPUART6
+  { 39,  LS1046A_CSU_ALL_RW },  // LPUART5
+  { 41,  LS1046A_CSU_ALL_RW },  // DSPI1
+  { 42,  LS1046A_CSU_ALL_RW },  // QSPI
+  { 43,  LS1046A_CSU_ALL_RW },  // ESDHC
+  { 45,  LS1046A_CSU_ALL_RW },  // IFC
+  { 46,  LS1046A_CSU_ALL_RW },  // I2C1
+  { 48,  LS1046A_CSU_ALL_RW },  // I2C3
+  { 49,  LS1046A_CSU_ALL_RW },  // I2C2
+  { 50,  LS1046A_CSU_ALL_RW },  // DUART2
+  { 51,  LS1046A_CSU_ALL_RW },  // DUART1
+  { 52,  LS1046A_CSU_ALL_RW },  // WDT2
+  { 53,  LS1046A_CSU_ALL_RW },  // WDT1
+  { 54,  LS1046A_CSU_ALL_RW },  // EDMA
+  { 55,  LS1046A_CSU_ALL_RW },  // SYS_CNT
+  { 56,  LS1046A_CSU_ALL_RW },  // DMA_MUX2
+  { 57,  LS1046A_CSU_ALL_RW },  // DMA_MUX1
+  { 58,  LS1046A_CSU_ALL_RW },  // DDR
+  { 59,  LS1046A_CSU_ALL_RW },  // QUICC
+  { 60,  LS1046A_CSU_ALL_RW },  // DCFG_CCU_RCPM
+  { 61,  LS1046A_CSU_ALL_RW },  // SECURE_BOOTROM
+  { 62,  LS1046A_CSU_ALL_RW },  // SFP
+  { 63,  LS1046A_CSU_ALL_RW },  // TMU
+  { 64,  LS1046A_CSU_ALL_RW },  // SECURE_MONITOR
+  { 65,  LS1046A_CSU_ALL_RW },  // SCFG
+  { 66,  LS1046A_CSU_ALL_RW },  // FM
+  { 67,  LS1046A_CSU_ALL_RW },  // SEC5_5
+  { 68,  LS1046A_CSU_ALL_RW },  // BM
+  { 69,  LS1046A_CSU_ALL_RW },  // QM
+  { 70,  LS1046A_CSU_ALL_RW },  // GPIO2
+  { 71,  LS1046A_CSU_ALL_RW },  // GPIO1
+  { 72,  LS1046A_CSU_ALL_RW },  // GPIO4
+  { 73,  LS1046A_CSU_ALL_RW },  // GPIO3
+  { 74,  LS1046A_CSU_ALL_RW },  // PLATFORM_CONT
+  { 75,  LS1046A_CSU_ALL_RW },  // CSU
+  { 77,  LS1046A_CSU_ALL_RW },  // IIC4
+  { 78,  LS1046A_CSU_ALL_RW },  // WDT4
+  { 79,  LS1046A_CSU_ALL_RW },  // WDT3
+  { 80,  LS1046A_CSU_ALL_RW },  // ESDHC2
+  { 81,  LS1046A_CSU_ALL_RW },  // WDT5
+  { 82,  LS1046A_CSU_ALL_RW },  // SAI2
+  { 83,  LS1046A_CSU_ALL_RW },  // SAI1
+  { 84,  LS1046A_CSU_ALL_RW },  // SAI4
+  { 85,  LS1046A_CSU_ALL_RW },  // SAI3
+  { 86,  LS1046A_CSU_ALL_RW },  // FTM2
+  { 87,  LS1046A_CSU_ALL_RW },  // FTM1
+  { 88,  LS1046A_CSU_ALL_RW },  // FTM4
+  { 89,  LS1046A_CSU_ALL_RW },  // FTM3
+  { 90,  LS1046A_CSU_ALL_RW },  // FTM6
+  { 91,  LS1046A_CSU_ALL_RW },  // FTM5
+  { 92,  LS1046A_CSU_ALL_RW },  // FTM8
+  { 93,  LS1046A_CSU_ALL_RW },  // FTM7
+  { 121, LS1046A_CSU_ALL_RW },  // DSCR
+};
 
 typedef struct {
   UINT32           Protocol;
@@ -174,6 +264,84 @@ SocGetClock (
  **/
 STATIC
 VOID
+ReadCsuDeviceNsAccess (
+  IN  UINTN  Index,
+  OUT UINT8  *Access
+  )
+{
+  UINTN   Address;
+  UINT32  Value;
+
+  Address = LS1046A_CSU_ADDRESS + ((Index / 2) * sizeof (UINT32));
+  Value = SwapBytes32 (MmioRead32 (Address));
+  if ((Index & 1) == 0) {
+    *Access = (UINT8)(Value >> 16);
+  } else {
+    *Access = (UINT8)Value;
+  }
+}
+
+STATIC
+VOID
+SetCsuDeviceNsAccess (
+  IN UINTN  Index,
+  IN UINT8  Access
+  )
+{
+  UINTN   Address;
+  UINT32  Value;
+
+  Address = LS1046A_CSU_ADDRESS + ((Index / 2) * sizeof (UINT32));
+  Value = SwapBytes32 (MmioRead32 (Address));
+  if ((Index & 1) == 0) {
+    Value &= LS1046A_CSU_CSL_VALUE_MASK;
+    Value |= (UINT32)Access << 16;
+  } else {
+    Value &= LS1046A_CSU_CSL_VALUE_MASK << 16;
+    Value |= Access;
+  }
+
+  MmioWrite32 (Address, SwapBytes32 (Value));
+}
+
+STATIC
+VOID
+EnableCsuNsAccess (
+  VOID
+  )
+{
+  UINTN  Index;
+  UINT8  QbmanPortalAccess;
+  UINT8  ScfgAccess;
+  UINT8  SecAccess;
+  UINT8  BmanAccess;
+  UINT8  QmanAccess;
+
+  for (Index = 0; Index < ARRAY_SIZE (mLs1046aCsuNsAccessTable); Index++) {
+    SetCsuDeviceNsAccess (
+      mLs1046aCsuNsAccessTable[Index].Index,
+      mLs1046aCsuNsAccessTable[Index].Access
+      );
+  }
+
+  ReadCsuDeviceNsAccess (12, &QbmanPortalAccess);
+  ReadCsuDeviceNsAccess (65, &ScfgAccess);
+  ReadCsuDeviceNsAccess (67, &SecAccess);
+  ReadCsuDeviceNsAccess (68, &BmanAccess);
+  ReadCsuDeviceNsAccess (69, &QmanAccess);
+  DEBUG ((
+    DEBUG_INFO,
+    "LS1046A CSU: ns access qbman-portal=0x%02x scfg=0x%02x sec=0x%02x bman=0x%02x qman=0x%02x\n",
+    QbmanPortalAccess,
+    ScfgAccess,
+    SecAccess,
+    BmanAccess,
+    QmanAccess
+    ));
+}
+
+STATIC
+VOID
 ConfigScfgMux (VOID)
 {
   LS1046A_SUPPLEMENTAL_CONFIG  *Scfg;
@@ -218,6 +386,8 @@ SocInit (
   LS1046A_SUPPLEMENTAL_CONFIG  *Scfg;
 
   Scfg = (LS1046A_SUPPLEMENTAL_CONFIG *)LS1046A_SCFG_ADDRESS;
+
+  EnableCsuNsAccess ();
 
   /* Match U-Boot: make SEC, SATA, USB and eDMA transactions snoopable. */
   ScfgOr32((UINTN)&Scfg->SnpCnfgCr, SCFG_SNPCNFGCR_SECRDSNP |
