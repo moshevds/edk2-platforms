@@ -60,11 +60,14 @@
 #define MONO_DT_MAC_ADDRESS_SIZE           6
 
 #define MONO_DT_CAAM_BASE                  0x01700000
+#define MONO_DT_CAAM_JR_LIODNR_MS_OFFSET   0x00000010
 #define MONO_DT_CAAM_JR_LIODNR_LS_OFFSET   0x00000014
 #define MONO_DT_CAAM_RTIC_LIODNR_LS_OFFSET 0x00000064
 #define MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET 0x000000A4
 #define MONO_DT_CAAM_LIODNR_STRIDE         0x8
 #define MONO_DT_CAAM_QILCR_LS_OFFSET       0x00070024
+#define MONO_DT_CAAM_JR_LIODNR_MS_JROWN_NS BIT3
+#define MONO_DT_CAAM_JR_LIODNR_MS_JRMID_NS BIT0
 #define MONO_DT_QMAN_BASE                  0x01880000
 #define MONO_DT_BMAN_BASE                  0x01890000
 #define MONO_DT_QBMAN_LIODNR_OFFSET        0x00000D08
@@ -365,6 +368,7 @@ PatchDtbSetupDpaa1Icids (
   VOID
   )
 {
+  UINTN   JrLiodnrMs;
   UINTN   Index;
   UINT32  StreamId;
 
@@ -379,6 +383,13 @@ PatchDtbSetupDpaa1Icids (
 
   for (Index = 0; Index < 4; Index++) {
     StreamId = MONO_DT_DPAA1_STREAM_ID_START + 3 + (UINT32)Index;
+    JrLiodnrMs = MONO_DT_CAAM_BASE + MONO_DT_CAAM_JR_LIODNR_MS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE);
+    MmioWrite32Be (
+      JrLiodnrMs,
+      MmioRead32Be (JrLiodnrMs) |
+      MONO_DT_CAAM_JR_LIODNR_MS_JROWN_NS |
+      MONO_DT_CAAM_JR_LIODNR_MS_JRMID_NS
+      );
     MmioWrite32Be (
       (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_JR_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE)),
       PatchDtbSecIcidValue (StreamId)
