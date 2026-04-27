@@ -20,6 +20,7 @@
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PrintLib.h>
+#include <Library/TimerLib.h>
 #include <Library/UefiBootManagerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
@@ -74,6 +75,14 @@
 #define MONO_DT_CAAM_MCFGR_AWCACHE_MASK    (0xFU << MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT)
 #define MONO_DT_CAAM_JR_LIODNR_MS_JROWN_NS BIT3
 #define MONO_DT_CAAM_JR_LIODNR_MS_JRMID_NS BIT0
+#define MONO_DT_CAAM_JR0_BASE              0x01710000
+#define MONO_DT_CAAM_JR_JRINT_OFFSET       0x0000004C
+#define MONO_DT_CAAM_JR_JRCR_OFFSET        0x0000006C
+#define MONO_DT_CAAM_JRCR_RESET            BIT0
+#define MONO_DT_CAAM_JRINT_ERR_HALT_MASK   0x0000000CU
+#define MONO_DT_CAAM_JRINT_ERR_HALT_BUSY   0x00000004U
+#define MONO_DT_CAAM_RESET_TIMEOUT_US      1000000U
+#define MONO_DT_CAAM_STALL_US              10U
 #define MONO_DT_QMAN_BASE                  0x01880000
 #define MONO_DT_BMAN_BASE                  0x01890000
 #define MONO_DT_QBMAN_LIODNR_OFFSET        0x00000D08
@@ -403,6 +412,55 @@ PatchDtbLogCaamHandoffState (
 }
 
 STATIC
+EFI_STATUS
+PatchDtbResetCaamJr0 (
+  VOID
+  )
+{
+  UINT32  Timeout;
+  UINT32  Value;
+
+  MmioWrite32Be (
+    (UINTN)(MONO_DT_CAAM_JR0_BASE + MONO_DT_CAAM_JR_JRCR_OFFSET),
+    MONO_DT_CAAM_JRCR_RESET
+    );
+
+  Timeout = MONO_DT_CAAM_RESET_TIMEOUT_US / MONO_DT_CAAM_STALL_US;
+  do {
+    Value = MmioRead32Be ((UINTN)(MONO_DT_CAAM_JR0_BASE + MONO_DT_CAAM_JR_JRINT_OFFSET));
+    if ((Value & MONO_DT_CAAM_JRINT_ERR_HALT_MASK) != MONO_DT_CAAM_JRINT_ERR_HALT_BUSY) {
+      break;
+    }
+
+    MicroSecondDelay (MONO_DT_CAAM_STALL_US);
+  } while (--Timeout != 0);
+
+  if (Timeout == 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM JR0 halt reset timed out\n"));
+    return EFI_TIMEOUT;
+  }
+
+  MmioWrite32Be (
+    (UINTN)(MONO_DT_CAAM_JR0_BASE + MONO_DT_CAAM_JR_JRCR_OFFSET),
+    MONO_DT_CAAM_JRCR_RESET
+    );
+
+  Timeout = MONO_DT_CAAM_RESET_TIMEOUT_US / MONO_DT_CAAM_STALL_US;
+  do {
+    Value = MmioRead32Be ((UINTN)(MONO_DT_CAAM_JR0_BASE + MONO_DT_CAAM_JR_JRCR_OFFSET));
+    if ((Value & MONO_DT_CAAM_JRCR_RESET) == 0) {
+      DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: CAAM JR0 reset complete\n"));
+      return EFI_SUCCESS;
+    }
+
+    MicroSecondDelay (MONO_DT_CAAM_STALL_US);
+  } while (--Timeout != 0);
+
+  DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM JR0 reset bit did not clear\n"));
+  return EFI_TIMEOUT;
+}
+
+STATIC
 VOID
 PatchDtbSetupDpaa1Icids (
   VOID
@@ -411,6 +469,7 @@ PatchDtbSetupDpaa1Icids (
   UINTN   JrLiodnrMs;
   UINTN   Index;
   UINT32  Mcfgr;
+  EFI_STATUS Status;
   UINT32  StreamId;
 
   PatchDtbLogCaamHandoffState ("before");
@@ -425,6 +484,11 @@ PatchDtbSetupDpaa1Icids (
   Mcfgr |= (1U << MONO_DT_CAAM_MCFGR_PS_SHIFT) |
            (0x2U << MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT);
   MmioWrite32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_MCFGR_OFFSET), Mcfgr);
+
+  Status = PatchDtbResetCaamJr0 ();
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: CAAM JR0 reset failed: %r\n", Status));
+  }
 
   MmioWrite32Be ((UINTN)(MONO_DT_QMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START);
   MmioWrite32Be ((UINTN)(MONO_DT_BMAN_BASE + MONO_DT_QBMAN_LIODNR_OFFSET), MONO_DT_DPAA1_STREAM_ID_START + 1);
