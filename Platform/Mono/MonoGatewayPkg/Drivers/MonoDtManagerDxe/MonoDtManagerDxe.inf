@@ -26,6 +26,7 @@
   Silicon/NXP/NxpQoriqLs.dec
 
 [LibraryClasses]
+  ArmSmcLib
   BaseLib
   BaseMemoryLib
   DebugLib
@@ -35,7 +36,9 @@
   I2cLib
   IoLib
   MemoryAllocationLib
+  PcdLib
   PrintLib
+  SocClockLib
   UefiBootManagerLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
@@ -49,6 +52,14 @@
 
 [Guids]
   gFdtTableGuid
+
+[FixedPcd]
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase
+  gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprSize
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdBase
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanFqdSize
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrBase
+  gNxpQoriqLsTokenSpaceGuid.PcdQmanPfdrSize
 
 [Depex]
   TRUE

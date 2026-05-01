@@ -10,6 +10,7 @@
 
 #include <Guid/Fdt.h>
 
+#include <Library/ArmSmcLib.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -19,7 +20,9 @@
 #include <Library/I2cLib.h>
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
+#include <Library/PcdLib.h>
 #include <Library/PrintLib.h>
+#include <Library/SocClockLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootManagerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -40,7 +43,14 @@
 #define MONO_DT_MONO_GATEWAY_DK_SDK_FILE_GUID \
   { 0x4b0eb03f, 0x5585, 0x4fb5, { 0xae, 0xbe, 0x0f, 0xc6, 0x34, 0x45, 0x9d, 0x21 } }
 
-#define MONO_DTB_FIXUP_SLACK  0x4000
+#define MONO_DT_FMAN_UCODE_FILE_GUID \
+  { 0x5f0b8d16, 0x8c6f, 0x4c8a, { 0x8d, 0x77, 0xcd, 0xbd, 0xb1, 0x6d, 0x8d, 0x80 } }
+
+#define MONO_DTB_FIXUP_SLACK  0x10000
+#define MONO_DT_DRAM_BANK_COUNT       2
+#define MONO_DT_SMC_OK                0
+#define MONO_DT_SMC_DRAM_BANK_INFO    0xC200FF12
+#define MONO_DT_SMC_DRAM_TOTAL_ARG1   MAX_UINT64
 
 #define MONO_DT_EEPROM_I2C0_PHYS_ADDRESS   0x02180000
 #define MONO_DT_EEPROM_I2C_SIZE            0x00010000
@@ -68,8 +78,16 @@
 #define MONO_DT_CAAM_RTIC_LIODNR_LS_OFFSET 0x00000064
 #define MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET 0x000000A4
 #define MONO_DT_CAAM_CTPR_MS_OFFSET        0x00000FA8
+#define MONO_DT_CAAM_CCBVID_OFFSET         0x00000FB4
+#define MONO_DT_CAAM_SECVID_MS_OFFSET      0x00000FE4
 #define MONO_DT_CAAM_LIODNR_STRIDE         0x8
 #define MONO_DT_CAAM_QILCR_LS_OFFSET       0x00070024
+#define MONO_DT_CAAM_CCBVID_ERA_MASK       0xFF000000U
+#define MONO_DT_CAAM_CCBVID_ERA_SHIFT      24
+#define MONO_DT_CAAM_SECVID_MS_IPID_MASK   0xFFFF0000U
+#define MONO_DT_CAAM_SECVID_MS_IPID_SHIFT  16
+#define MONO_DT_CAAM_SECVID_MS_MAJ_MASK    0x0000FF00U
+#define MONO_DT_CAAM_SECVID_MS_MAJ_SHIFT   8
 #define MONO_DT_CAAM_MCFGR_PS_SHIFT        16
 #define MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT   8
 #define MONO_DT_CAAM_MCFGR_AWCACHE_MASK    (0xFU << MONO_DT_CAAM_MCFGR_AWCACHE_SHIFT)
@@ -107,26 +125,75 @@
 #define MONO_DT_BMAN_PORTAL_ISDR_OFFSET    0x00003E80
 #define MONO_DT_DPAA1_STREAM_ID_START      27
 #define MONO_DT_DPAA1_STREAM_ID_END        63
+#define MONO_DT_CAAM_JR0_STREAM_ID         (MONO_DT_DPAA1_STREAM_ID_START + 3)
+#define MONO_DT_USB1_STREAM_ID             1
+#define MONO_DT_USB2_STREAM_ID             2
+#define MONO_DT_USB3_STREAM_ID             3
+#define MONO_DT_SDHC_STREAM_ID             4
+#define MONO_DT_SATA_STREAM_ID             5
+#define MONO_DT_QDMA_STREAM_ID             7
+#define MONO_DT_EDMA_STREAM_ID             8
 
 typedef struct {
   CONST CHAR8  *Path;
   UINT16       Offset;
 } MONO_DT_MAC_FIXUP;
 
+typedef struct {
+  CONST CHAR8  *Compatible;
+  UINT64       RegAddress;
+  UINT32       StreamId;
+} MONO_DT_ICID_FIXUP;
+
+typedef struct {
+  CONST CHAR8  *Compatible;
+  UINT32       ClockHz;
+} MONO_DT_CLOCK_COMPAT_FIXUP;
+
+typedef struct {
+  CONST CHAR8  *Path;
+  UINT32       ClockHz;
+} MONO_DT_CLOCK_PATH_FIXUP;
+
+typedef struct {
+  CONST CHAR8  *Alias;
+  UINT64       Base;
+  UINT64       Size;
+} MONO_DT_RESERVED_MEM_FIXUP;
+
 STATIC EFI_GUID mMonoDtManagerAppFileGuid = MONO_DT_MANAGER_APP_FILE_GUID;
+STATIC EFI_GUID mMonoDtFmanUcodeFileGuid  = MONO_DT_FMAN_UCODE_FILE_GUID;
 STATIC VOID     *mVariableWriteArchRegistration;
 STATIC EFI_EVENT mVariableWriteArchEvent;
 
 STATIC CONST MONO_DT_BLOB_DESCRIPTOR mMonoEmbeddedDtbs[] = {
   {
     MONO_DT_MONO_GATEWAY_DK_SDK_FILE_GUID,
-    L"mono-gateway-dk"
+    L"mono-gateway-dk original"
+  },
+  {
+    MONO_DT_MONO_GATEWAY_DK_SDK_FILE_GUID,
+    L"mono-gateway-dk dynamic"
   }
+};
+
+STATIC CONST BOOLEAN mMonoEmbeddedDtbDynamic[] = {
+  FALSE,
+  TRUE
 };
 
 STATIC EFI_PHYSICAL_ADDRESS mInstalledDtbBase  = 0;
 STATIC UINTN                mInstalledDtbPages = 0;
 STATIC INTN                 mActiveDtbIndex    = -1;
+STATIC BOOLEAN              mActiveDtbDynamic  = FALSE;
+
+STATIC
+VOID
+PatchDtbDeletePropFromNodeIfPresent (
+  IN OUT VOID  *Dtb,
+  IN     INT32 Node,
+  IN     CHAR8 *Property
+  );
 
 STATIC
 VOID
@@ -337,16 +404,13 @@ PatchDtbMacAddressesFromEeprom (
       continue;
     }
 
-    FdtStatus = FdtSetProp (Dtb, Node, "mac-address", Mac, sizeof (Mac));
-    if (FdtStatus != 0) {
-      DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set mac-address on %a: %a\n", MacFixups[Index].Path, FdtStrerror (FdtStatus)));
-      continue;
-    }
-
     FdtStatus = FdtSetProp (Dtb, Node, "local-mac-address", Mac, sizeof (Mac));
     if (FdtStatus != 0) {
       DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set local-mac-address on %a: %a\n", MacFixups[Index].Path, FdtStrerror (FdtStatus)));
+      continue;
     }
+
+    PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "mac-address");
   }
 }
 
@@ -544,7 +608,7 @@ PatchDtbSetupDpaa1Icids (
       );
   }
 
-  for (Index = 0; Index < 3; Index++) {
+  for (Index = 0; Index < 2; Index++) {
     StreamId = MONO_DT_DPAA1_STREAM_ID_START + 11 + (UINT32)Index;
     MmioWrite32Be (
       (UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_DECO_LIODNR_LS_OFFSET + (Index * MONO_DT_CAAM_LIODNR_STRIDE)),
@@ -603,6 +667,624 @@ PatchDtbSetupQbmanPortals (
 
 STATIC
 VOID
+PatchDtbSetPropU32 (
+  IN OUT VOID        *Dtb,
+  IN     INT32       Node,
+  IN     CONST CHAR8 *Property,
+  IN     UINT32      Value
+  )
+{
+  UINT32  BeValue;
+  INT32   FdtStatus;
+
+  BeValue   = CpuToFdt32 (Value);
+  FdtStatus = FdtSetProp (Dtb, Node, Property, &BeValue, sizeof (BeValue));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set %a: %a\n", Property, FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+VOID
+PatchDtbMemoryFromTfaBanks (
+  IN OUT VOID  *Dtb
+  )
+{
+  ARM_SMC_ARGS  Args;
+  UINT64        Reg[MONO_DT_DRAM_BANK_COUNT * 2];
+  UINTN         Index;
+  INT32         Node;
+  UINTN         RegEntries;
+  INT32         FdtStatus;
+
+  RegEntries = 0;
+  for (Index = 0; Index < MONO_DT_DRAM_BANK_COUNT; Index++) {
+    ZeroMem (&Args, sizeof (Args));
+    Args.Arg0 = MONO_DT_SMC_DRAM_BANK_INFO;
+    Args.Arg1 = Index;
+    ArmCallSmc (&Args);
+
+    if ((Args.Arg0 != MONO_DT_SMC_OK) || (Args.Arg1 == 0) || (Args.Arg2 == 0)) {
+      break;
+    }
+
+    Reg[RegEntries * 2]     = CpuToFdt64 ((UINT64)Args.Arg1);
+    Reg[RegEntries * 2 + 1] = CpuToFdt64 ((UINT64)Args.Arg2);
+    RegEntries++;
+  }
+
+  if (RegEntries != MONO_DT_DRAM_BANK_COUNT) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MonoDtManagerDxe: TF-A returned %u DRAM bank(s), expected %u for U-Boot-compatible DT /memory\n",
+      (UINT32)RegEntries,
+      (UINT32)MONO_DT_DRAM_BANK_COUNT
+      ));
+    return;
+  }
+
+  PatchDtbSetPropU32 (Dtb, 0, "#address-cells", 2);
+  PatchDtbSetPropU32 (Dtb, 0, "#size-cells", 2);
+
+  Node = FdtSubnodeOffset (Dtb, 0, "memory");
+  if (Node < 0) {
+    Node = FdtSubnodeOffset (Dtb, 0, "memory@80000000");
+  }
+
+  if (Node < 0) {
+    Node = FdtAddSubnode (Dtb, 0, "memory@80000000");
+  }
+
+  if (Node < 1) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to create DT /memory node: %a\n", FdtStrerror (Node)));
+    return;
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, "device_type", "memory", sizeof ("memory"));
+  if (FdtStatus == 0) {
+    FdtStatus = FdtSetProp (Dtb, Node, "reg", Reg, sizeof (Reg));
+  }
+
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to install DT /memory: %a\n", FdtStrerror (FdtStatus)));
+  } else {
+    DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: installed %u TF-A DRAM bank(s) into DT /memory\n", (UINT32)RegEntries));
+  }
+}
+
+STATIC
+UINT64
+PatchDtbReadRegAddress (
+  IN CONST VOID  *Dtb,
+  IN INT32       Node
+  )
+{
+  CONST UINT32  *Reg;
+  INT32         Len;
+  INT32         Parent;
+  INT32         AddressCells;
+
+  Parent = FdtParentOffset (Dtb, Node);
+  if (Parent < 0) {
+    return MAX_UINT64;
+  }
+
+  AddressCells = FdtAddressCells (Dtb, Parent);
+  if (AddressCells <= 0) {
+    AddressCells = 2;
+  }
+
+  Reg = FdtGetProp (Dtb, Node, "reg", &Len);
+  if ((Reg == NULL) || (Len < AddressCells * (INT32)sizeof (UINT32))) {
+    return MAX_UINT64;
+  }
+
+  if (AddressCells == 1) {
+    return Fdt32ToCpu (Reg[0]);
+  }
+
+  return LShiftU64 ((UINT64)Fdt32ToCpu (Reg[0]), 32) | Fdt32ToCpu (Reg[1]);
+}
+
+STATIC
+INT32
+PatchDtbFindNodeByCompatibleReg (
+  IN CONST VOID  *Dtb,
+  IN CONST CHAR8 *Compatible,
+  IN UINT64      RegAddress
+  )
+{
+  INT32  Node;
+
+  for (Node = FdtNodeOffsetByCompatible (Dtb, -1, Compatible);
+       Node >= 0;
+       Node = FdtNodeOffsetByCompatible (Dtb, Node, Compatible))
+  {
+    if (PatchDtbReadRegAddress (Dtb, Node) == RegAddress) {
+      return Node;
+    }
+  }
+
+  return -FDT_ERR_NOTFOUND;
+}
+
+STATIC
+INT32
+PatchDtbGetOrCreateSmmuPhandle (
+  IN OUT VOID  *Dtb
+  )
+{
+  UINT32  Phandle;
+  INT32   Node;
+  INT32   FdtStatus;
+
+  Node = FdtNodeOffsetByCompatible (Dtb, -1, "arm,mmu-500");
+  if (Node < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: DT SMMU node not found: %a\n", FdtStrerror (Node)));
+    return Node;
+  }
+
+  Phandle = FdtGetPhandle (Dtb, Node);
+  if (Phandle != 0) {
+    return (INT32)Phandle;
+  }
+
+  FdtStatus = FdtFindMaxPhandle (Dtb, &Phandle);
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to find max DT phandle: %a\n", FdtStrerror (FdtStatus)));
+    return FdtStatus;
+  }
+
+  Phandle++;
+  PatchDtbSetPropU32 (Dtb, Node, "phandle", Phandle);
+  return (INT32)Phandle;
+}
+
+STATIC
+VOID
+PatchDtbSetIommus (
+  IN OUT VOID   *Dtb,
+  IN     INT32  Node,
+  IN     UINT32 SmmuPhandle,
+  IN     UINT32 *StreamIds,
+  IN     UINTN  StreamIdCount
+  )
+{
+  UINT32  Iommus[8];
+  UINTN   Index;
+  INT32   FdtStatus;
+
+  if ((StreamIdCount == 0) || (StreamIdCount > ARRAY_SIZE (Iommus) / 2)) {
+    return;
+  }
+
+  for (Index = 0; Index < StreamIdCount; Index++) {
+    Iommus[Index * 2]     = CpuToFdt32 (SmmuPhandle);
+    Iommus[Index * 2 + 1] = CpuToFdt32 (StreamIds[Index]);
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, "iommus", Iommus, (INT32)(StreamIdCount * 2 * sizeof (Iommus[0])));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set iommus: %a\n", FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+INT32
+PatchDtbFindFmanIcid (
+  IN UINT32  PortId
+  )
+{
+  if (((PortId >= 0x02) && (PortId <= 0x0d)) ||
+      ((PortId >= 0x10) && (PortId <= 0x11)) ||
+      ((PortId >= 0x28) && (PortId <= 0x2d)) ||
+      ((PortId >= 0x30) && (PortId <= 0x31)))
+  {
+    return MONO_DT_DPAA1_STREAM_ID_END;
+  }
+
+  return -1;
+}
+
+STATIC
+VOID
+PatchDtbFmanIcidByCompatible (
+  IN OUT VOID        *Dtb,
+  IN     UINT32      SmmuPhandle,
+  IN     CONST CHAR8 *Compatible
+  )
+{
+  CONST UINT32  *CellIndex;
+  INT32         IcId;
+  INT32         Len;
+  INT32         Node;
+  UINT32        StreamId;
+
+  for (Node = FdtNodeOffsetByCompatible (Dtb, -1, Compatible);
+       Node >= 0;
+       Node = FdtNodeOffsetByCompatible (Dtb, Node, Compatible))
+  {
+    CellIndex = FdtGetProp (Dtb, Node, "cell-index", &Len);
+    if ((CellIndex == NULL) || (Len != sizeof (*CellIndex))) {
+      DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: FMan port missing cell-index for ICID fixup\n"));
+      continue;
+    }
+
+    IcId = PatchDtbFindFmanIcid (Fdt32ToCpu (*CellIndex));
+    if (IcId < 0) {
+      continue;
+    }
+
+    StreamId = (UINT32)IcId;
+    PatchDtbSetIommus (Dtb, Node, SmmuPhandle, &StreamId, 1);
+  }
+}
+
+STATIC
+VOID
+PatchDtbSmmuIcids (
+  IN OUT VOID  *Dtb
+  )
+{
+  STATIC CONST MONO_DT_ICID_FIXUP  IcidFixups[] = {
+    { "fsl,qman",               MONO_DT_QMAN_BASE,       MONO_DT_DPAA1_STREAM_ID_START     },
+    { "fsl,bman",               MONO_DT_BMAN_BASE,       MONO_DT_DPAA1_STREAM_ID_START + 1 },
+    { "fsl,esdhc",              0x01560000,              MONO_DT_SDHC_STREAM_ID            },
+    { "snps,dwc3",              0x02f00000,              MONO_DT_USB1_STREAM_ID            },
+    { "snps,dwc3",              0x03000000,              MONO_DT_USB2_STREAM_ID            },
+    { "snps,dwc3",              0x03100000,              MONO_DT_USB3_STREAM_ID            },
+    { "fsl,ls1046a-ahci",       0x03200000,              MONO_DT_SATA_STREAM_ID            },
+    { "fsl,ls1046a-qdma",       0x08380000,              MONO_DT_QDMA_STREAM_ID            },
+    { "fsl,vf610-edma",         0x02c00000,              MONO_DT_EDMA_STREAM_ID            },
+    { "fsl,sec-v4.0",           MONO_DT_CAAM_BASE,       MONO_DT_DPAA1_STREAM_ID_END       },
+    { "fsl,sec-v4.0-job-ring",  0x01710000,              MONO_DT_CAAM_JR0_STREAM_ID        },
+    { "fsl,sec-v4.0-job-ring",  0x01720000,              MONO_DT_CAAM_JR0_STREAM_ID + 1    },
+    { "fsl,sec-v4.0-job-ring",  0x01730000,              MONO_DT_CAAM_JR0_STREAM_ID + 2    },
+    { "fsl,sec-v4.0-job-ring",  0x01740000,              MONO_DT_CAAM_JR0_STREAM_ID + 3    }
+  };
+  INT32   Node;
+  UINTN   Index;
+  UINT32  SmmuPhandle;
+  UINT32  StreamId;
+  UINT32  QportalIcids[3];
+
+  Node = PatchDtbGetOrCreateSmmuPhandle (Dtb);
+  if (Node < 0) {
+    return;
+  }
+
+  SmmuPhandle = (UINT32)Node;
+  for (Index = 0; Index < ARRAY_SIZE (IcidFixups); Index++) {
+    Node = PatchDtbFindNodeByCompatibleReg (Dtb, IcidFixups[Index].Compatible, IcidFixups[Index].RegAddress);
+    if (Node < 0) {
+      continue;
+    }
+
+    StreamId = IcidFixups[Index].StreamId;
+    PatchDtbSetIommus (Dtb, Node, SmmuPhandle, &StreamId, 1);
+  }
+
+  PatchDtbFmanIcidByCompatible (Dtb, SmmuPhandle, "fsl,fman-v3-port-oh");
+  PatchDtbFmanIcidByCompatible (Dtb, SmmuPhandle, "fsl,fman-v3-port-rx");
+  PatchDtbFmanIcidByCompatible (Dtb, SmmuPhandle, "fsl,fman-v3-port-tx");
+
+  QportalIcids[0] = MONO_DT_DPAA1_STREAM_ID_END;
+  QportalIcids[1] = MONO_DT_DPAA1_STREAM_ID_END;
+  QportalIcids[2] = MONO_DT_DPAA1_STREAM_ID_END;
+  for (Node = FdtNodeOffsetByCompatible (Dtb, -1, "fsl,qman-portal");
+       Node >= 0;
+       Node = FdtNodeOffsetByCompatible (Dtb, Node, "fsl,qman-portal"))
+  {
+    PatchDtbSetIommus (Dtb, Node, SmmuPhandle, QportalIcids, ARRAY_SIZE (QportalIcids));
+  }
+}
+
+STATIC
+VOID
+PatchDtbSetClockByCompatible (
+  IN OUT VOID        *Dtb,
+  IN     CONST CHAR8 *Compatible,
+  IN     UINT32      ClockHz
+  )
+{
+  INT32  Node;
+
+  if (ClockHz == 0) {
+    return;
+  }
+
+  for (Node = FdtNodeOffsetByCompatible (Dtb, -1, Compatible);
+       Node >= 0;
+       Node = FdtNodeOffsetByCompatible (Dtb, Node, Compatible))
+  {
+    PatchDtbSetPropU32 (Dtb, Node, "clock-frequency", ClockHz);
+  }
+}
+
+STATIC
+VOID
+PatchDtbSetClockByPath (
+  IN OUT VOID        *Dtb,
+  IN     CONST CHAR8 *Path,
+  IN     UINT32      ClockHz
+  )
+{
+  INT32  Node;
+
+  if (ClockHz == 0) {
+    return;
+  }
+
+  Node = FdtPathOffset (Dtb, Path);
+  if (Node >= 0) {
+    PatchDtbSetPropU32 (Dtb, Node, "clock-frequency", ClockHz);
+  }
+}
+
+STATIC
+VOID
+PatchDtbClocks (
+  IN OUT VOID  *Dtb
+  )
+{
+  CONST MONO_DT_CLOCK_COMPAT_FIXUP CompatClocks[] = {
+    { "fsl,ns16550", (UINT32)SocGetClock (IP_DUART, 0) },
+    { "fsl,esdhc",   (UINT32)SocGetClock (IP_ESDHC, 0) },
+    { "fsl,qman",    (UINT32)SocGetClock (IP_QMAN, 0)  }
+  };
+  CONST MONO_DT_CLOCK_PATH_FIXUP PathClocks[] = {
+    { "/sysclk", (UINT32)SocGetClock (IP_SYSCLK, 0) }
+  };
+  UINTN  Index;
+
+  for (Index = 0; Index < ARRAY_SIZE (CompatClocks); Index++) {
+    PatchDtbSetClockByCompatible (Dtb, CompatClocks[Index].Compatible, CompatClocks[Index].ClockHz);
+  }
+
+  for (Index = 0; Index < ARRAY_SIZE (PathClocks); Index++) {
+    PatchDtbSetClockByPath (Dtb, PathClocks[Index].Path, PathClocks[Index].ClockHz);
+  }
+}
+
+STATIC
+VOID
+PatchDtbCaamEra (
+  IN OUT VOID  *Dtb
+  )
+{
+  UINT32  Ccbvid;
+  UINT32  Era;
+  UINT32  MajRev;
+  UINT32  SecvidMs;
+  UINT32  IpId;
+  INT32   Node;
+
+  Node = FdtPathOffset (Dtb, "/soc/crypto@1700000");
+  if (Node < 0) {
+    return;
+  }
+
+  SecvidMs = MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_SECVID_MS_OFFSET));
+  IpId     = (SecvidMs & MONO_DT_CAAM_SECVID_MS_IPID_MASK) >> MONO_DT_CAAM_SECVID_MS_IPID_SHIFT;
+  MajRev   = (SecvidMs & MONO_DT_CAAM_SECVID_MS_MAJ_MASK) >> MONO_DT_CAAM_SECVID_MS_MAJ_SHIFT;
+
+  if (IpId == 0x0A10) {
+    Era = (MajRev < 3) ? 2 : 3;
+  } else {
+    Ccbvid = MmioRead32Be ((UINTN)(MONO_DT_CAAM_BASE + MONO_DT_CAAM_CCBVID_OFFSET));
+    Era = (Ccbvid & MONO_DT_CAAM_CCBVID_ERA_MASK) >> MONO_DT_CAAM_CCBVID_ERA_SHIFT;
+    if (Era == 0) {
+      Era = 8;
+    }
+  }
+
+  PatchDtbSetPropU32 (Dtb, Node, "fsl,sec-era", Era);
+}
+
+STATIC
+VOID
+PatchDtbSetReg64 (
+  IN OUT VOID  *Dtb,
+  IN     INT32 Node,
+  IN     UINT64 Base,
+  IN     UINT64 Size
+  )
+{
+  UINT64  Reg[2];
+  INT32   FdtStatus;
+
+  Reg[0] = CpuToFdt64 (Base);
+  Reg[1] = CpuToFdt64 (Size);
+
+  FdtStatus = FdtSetProp (Dtb, Node, "reg", Reg, sizeof (Reg));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set reserved-memory reg: %a\n", FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+VOID
+PatchDtbQbmanReservedMemory (
+  IN OUT VOID  *Dtb
+  )
+{
+  CONST MONO_DT_RESERVED_MEM_FIXUP ReservedFixups[] = {
+    { "bman_fbpr", FixedPcdGet64 (PcdBmanFbprBase), FixedPcdGet32 (PcdBmanFbprSize) },
+    { "qman_fqd",  FixedPcdGet64 (PcdQmanFqdBase),  FixedPcdGet32 (PcdQmanFqdSize)  },
+    { "qman_pfdr", FixedPcdGet64 (PcdQmanPfdrBase), FixedPcdGet32 (PcdQmanPfdrSize) }
+  };
+  CONST CHAR8  *Path;
+  INT32        Node;
+  INT32        ReservedNode;
+  UINTN        Index;
+
+  ReservedNode = FdtPathOffset (Dtb, "/reserved-memory");
+  if (ReservedNode < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: no /reserved-memory node; skipping QBMan reserved memory fixups\n"));
+    return;
+  }
+
+  PatchDtbSetPropU32 (Dtb, ReservedNode, "#address-cells", 2);
+  PatchDtbSetPropU32 (Dtb, ReservedNode, "#size-cells", 2);
+
+  for (Index = 0; Index < ARRAY_SIZE (ReservedFixups); Index++) {
+    if ((ReservedFixups[Index].Base == 0) || (ReservedFixups[Index].Size == 0)) {
+      continue;
+    }
+
+    Path = FdtGetAliasNameLen (
+             Dtb,
+             ReservedFixups[Index].Alias,
+             (INT32)AsciiStrLen (ReservedFixups[Index].Alias)
+             );
+    if (Path == NULL) {
+      DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: no %a alias; skipping QBMan reserved memory node\n", ReservedFixups[Index].Alias));
+      continue;
+    }
+
+    Node = FdtPathOffset (Dtb, Path);
+    if (Node < 0) {
+      DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: QBMan reserved memory path %a not found: %a\n", Path, FdtStrerror (Node)));
+      continue;
+    }
+
+    PatchDtbSetReg64 (Dtb, Node, ReservedFixups[Index].Base, ReservedFixups[Index].Size);
+    PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "size");
+    PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "alignment");
+    PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "alloc-ranges");
+  }
+}
+
+STATIC
+INT32
+PatchDtbGetOrCreatePhandle (
+  IN OUT VOID  *Dtb,
+  IN     INT32 Node
+  )
+{
+  UINT32  Phandle;
+  INT32   FdtStatus;
+
+  Phandle = FdtGetPhandle (Dtb, Node);
+  if (Phandle != 0) {
+    return (INT32)Phandle;
+  }
+
+  FdtStatus = FdtFindMaxPhandle (Dtb, &Phandle);
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to find max DT phandle: %a\n", FdtStrerror (FdtStatus)));
+    return FdtStatus;
+  }
+
+  Phandle++;
+  PatchDtbSetPropU32 (Dtb, Node, "phandle", Phandle);
+  return (INT32)Phandle;
+}
+
+STATIC
+BOOLEAN
+PatchDtbIsValidFmanFirmware (
+  IN CONST VOID  *Firmware,
+  IN UINTN       FirmwareSize
+  )
+{
+  CONST UINT8   *Bytes;
+  CONST UINT32  *Length;
+  UINT32        FirmwareLength;
+
+  if ((Firmware == NULL) || (FirmwareSize < 8)) {
+    return FALSE;
+  }
+
+  Bytes = Firmware;
+  if ((Bytes[4] != 'Q') || (Bytes[5] != 'E') || (Bytes[6] != 'F')) {
+    return FALSE;
+  }
+
+  Length = (CONST UINT32 *)Firmware;
+  FirmwareLength = Fdt32ToCpu (*Length);
+  return (BOOLEAN)((FirmwareLength > 0) && (FirmwareLength <= FirmwareSize));
+}
+
+STATIC
+VOID
+PatchDtbFmanFirmware (
+  IN OUT VOID  *Dtb
+  )
+{
+  EFI_STATUS  Status;
+  VOID        *Firmware;
+  UINTN       FirmwareSize;
+  INT32       FmanNode;
+  INT32       FirmwareNode;
+  INT32       FdtStatus;
+  INT32       Phandle;
+
+  FmanNode = FdtNodeOffsetByCompatible (Dtb, -1, "fsl,fman");
+  if (FmanNode < 0) {
+    return;
+  }
+
+  if (FdtNodeOffsetByCompatible (Dtb, -1, "fsl,fman-firmware") > 0) {
+    return;
+  }
+
+  Status = GetSectionFromAnyFv (
+             &mMonoDtFmanUcodeFileGuid,
+             EFI_SECTION_RAW,
+             0,
+             &Firmware,
+             &FirmwareSize
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: FMan firmware FV section not found: %r\n", Status));
+    return;
+  }
+
+  if (!PatchDtbIsValidFmanFirmware (Firmware, FirmwareSize)) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: FMan firmware FV section is invalid\n"));
+    FreePool (Firmware);
+    return;
+  }
+
+  FirmwareNode = FdtAddSubnode (Dtb, FmanNode, "fman-firmware");
+  if (FirmwareNode < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to add fman-firmware node: %a\n", FdtStrerror (FirmwareNode)));
+    FreePool (Firmware);
+    return;
+  }
+
+  FdtStatus = FdtSetPropString (Dtb, FirmwareNode, "compatible", "fsl,fman-firmware");
+  if (FdtStatus == 0) {
+    Phandle = PatchDtbGetOrCreatePhandle (Dtb, FirmwareNode);
+    if (Phandle < 0) {
+      FdtStatus = Phandle;
+    }
+  }
+
+  if (FdtStatus == 0) {
+    FdtStatus = FdtSetProp (Dtb, FirmwareNode, "fsl,firmware", Firmware, (INT32)FirmwareSize);
+  }
+
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to populate fman-firmware node: %a\n", FdtStrerror (FdtStatus)));
+    FreePool (Firmware);
+    return;
+  }
+
+  for (FmanNode = FdtNodeOffsetByCompatible (Dtb, FmanNode, "fsl,fman");
+       FmanNode >= 0;
+       FmanNode = FdtNodeOffsetByCompatible (Dtb, FmanNode, "fsl,fman"))
+  {
+    PatchDtbSetPropU32 (Dtb, FmanNode, "fsl,firmware-phandle", (UINT32)Phandle);
+  }
+
+  FreePool (Firmware);
+}
+
+STATIC
+VOID
+__attribute__((unused))
 PatchDtbSetEmptyProp (
   IN OUT VOID  *Dtb,
   IN     CHAR8 *Path,
@@ -646,6 +1328,40 @@ PatchDtbDeletePropIfPresent (
   if ((FdtStatus != 0) && (FdtStatus != -FDT_ERR_NOTFOUND)) {
     DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to delete %a/%a: %a\n", Path, Property, FdtStrerror (FdtStatus)));
   }
+}
+
+STATIC
+VOID
+PatchDtbDeletePropFromNodeIfPresent (
+  IN OUT VOID  *Dtb,
+  IN     INT32 Node,
+  IN     CHAR8 *Property
+  )
+{
+  INT32  FdtStatus;
+
+  FdtStatus = FdtDelProp (Dtb, Node, Property);
+  if ((FdtStatus != 0) && (FdtStatus != -FDT_ERR_NOTFOUND)) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to delete node %d/%a: %a\n", Node, Property, FdtStrerror (FdtStatus)));
+  }
+}
+
+STATIC
+VOID
+PatchDtbChosen (
+  IN OUT VOID  *Dtb
+  )
+{
+  INT32  Node;
+
+  Node = FdtPathOffset (Dtb, "/chosen");
+  if (Node < 0) {
+    return;
+  }
+
+  PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "bootargs");
+  PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "u-boot,bootconf");
+  PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "u-boot,version");
 }
 
 STATIC
@@ -718,16 +1434,12 @@ PatchDtbCaam (
   PatchDtbSetupDpaa1Icids ();
   PatchDtbSetupQbmanPortals ();
 
-  PatchDtbSetEmptyProp (Dtb, "/soc/crypto@1700000", "big-endian");
-  PatchDtbSetEmptyProp (Dtb, "/soc/qman@1880000", "big-endian");
-  PatchDtbSetEmptyProp (Dtb, "/soc/bman@1890000", "big-endian");
-  PatchDtbSetEmptyProp (Dtb, "/soc/crypto@1700000", "dma-coherent");
-  PatchDtbSetEmptyProp (Dtb, "/soc/qman@1880000", "dma-coherent");
-  PatchDtbSetEmptyProp (Dtb, "/soc/bman@1890000", "dma-coherent");
-  PatchDtbSetEmptyProp (Dtb, "/soc/qman-portals-bus@500000000", "dma-coherent");
-  PatchDtbSetEmptyProp (Dtb, "/soc/bman-portals-bus@508000000", "dma-coherent");
+  PatchDtbCaamEra (Dtb);
+
   PatchDtbQbmanPortalCompatible (Dtb, "fsl,qman-portal", "fsl,qman-portal", MONO_DT_QMAN_BASE);
   PatchDtbQbmanPortalCompatible (Dtb, "fsl,bman-portal", "fsl,bman-portal", MONO_DT_BMAN_BASE);
+  PatchDtbSmmuIcids (Dtb);
+  PatchDtbClocks (Dtb);
 
   Node = FdtPathOffset (Dtb, "/soc/crypto@1700000/jr@40000");
   if (Node < 0) {
@@ -764,6 +1476,7 @@ ClearInstalledDtb (
   }
 
   mActiveDtbIndex = -1;
+  mActiveDtbDynamic = FALSE;
   return EFI_SUCCESS;
 }
 
@@ -814,8 +1527,16 @@ InstallEmbeddedDtb (
     return EFI_DEVICE_ERROR;
   }
 
-  PatchDtbMacAddressesFromEeprom ((VOID *)(UINTN)RuntimeBase);
-  PatchDtbCaam ((VOID *)(UINTN)RuntimeBase);
+  if (mMonoEmbeddedDtbDynamic[Index]) {
+    PatchDtbMemoryFromTfaBanks ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbChosen ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbQbmanReservedMemory ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbFmanFirmware ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbMacAddressesFromEeprom ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbCaam ((VOID *)(UINTN)RuntimeBase);
+  } else {
+    DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: installing original DTB without dynamic fixups\n"));
+  }
 
   Status = gBS->InstallConfigurationTable (
                   &gFdtTableGuid,
@@ -829,6 +1550,7 @@ InstallEmbeddedDtb (
   mInstalledDtbBase  = RuntimeBase;
   mInstalledDtbPages = RuntimePages;
   mActiveDtbIndex    = (INTN)Index;
+  mActiveDtbDynamic  = mMonoEmbeddedDtbDynamic[Index];
   return EFI_SUCCESS;
 }
 
@@ -873,6 +1595,28 @@ MonoDtGetActiveDtb (
 STATIC
 EFI_STATUS
 EFIAPI
+MonoDtGetActiveDtbMode (
+  IN  MONO_DT_MANAGER_PROTOCOL  *This,
+  OUT BOOLEAN                   *Dynamic
+  )
+{
+  (VOID)This;
+
+  if (Dynamic == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (mActiveDtbIndex < 0) {
+    return EFI_NOT_FOUND;
+  }
+
+  *Dynamic = mActiveDtbDynamic;
+  return EFI_SUCCESS;
+}
+
+STATIC
+EFI_STATUS
+EFIAPI
 MonoDtSelectDtb (
   IN MONO_DT_MANAGER_PROTOCOL  *This,
   IN UINTN                     Index
@@ -896,6 +1640,7 @@ MonoDtClearDtb (
 STATIC MONO_DT_MANAGER_PROTOCOL mMonoDtManager = {
   MonoDtGetEmbeddedDtbs,
   MonoDtGetActiveDtb,
+  MonoDtGetActiveDtbMode,
   MonoDtSelectDtb,
   MonoDtClearDtb
 };
@@ -1039,7 +1784,11 @@ MonoDtCommandHandler (
     if (mActiveDtbIndex < 0) {
       MonoDtPrint (L"Device tree: disabled\r\n");
     } else {
-      MonoDtPrint (L"Device tree: %s\r\n", mMonoEmbeddedDtbs[mActiveDtbIndex].Name);
+      MonoDtPrint (
+        L"Device tree: %s (%s)\r\n",
+        mMonoEmbeddedDtbs[mActiveDtbIndex].Name,
+        mActiveDtbDynamic ? L"dynamic" : L"original"
+        );
     }
 
     return SHELL_SUCCESS;

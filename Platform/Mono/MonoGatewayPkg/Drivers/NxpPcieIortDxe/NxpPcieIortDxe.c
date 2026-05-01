@@ -13,6 +13,7 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/FdtLib.h>
+#include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
 #include <Library/SerDes.h>
@@ -20,6 +21,7 @@
 #include <Library/UefiLib.h>
 #include <Platform.h>
 #include <Protocol/AcpiTable.h>
+#include <Protocol/MonoDtManager.h>
 #include <Protocol/NxpPcieStreamIdMap.h>
 #include <Protocol/PciIo.h>
 #include <Protocol/PciRootBridgeIo.h>
@@ -37,8 +39,14 @@
 #define LS1046A_PCIE_CONTROLLER_COUNT 3
 #define LS1046A_PCIE_DBI_BASE        0x03400000ULL
 #define LS1046A_PCIE_DBI_STRIDE      0x00100000ULL
+#define DW_PCIE_PORT_DEBUG1          0x72C
+#define DW_PCIE_PORT_DEBUG1_LINK_UP  BIT4
+#define DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING BIT29
 
 #define NXP_PCIE_FDT_COMPATIBLE      "fsl,ls1046a-pcie"
+#define NXP_PCIE_FDT_COMPATIBLE_LEGACY "fsl,ls-pcie"
+#define NXP_PCIE_EP_FDT_COMPATIBLE   "fsl,ls1046a-pcie-ep"
+#define NXP_PCIE_EP_FDT_COMPATIBLE_LEGACY "fsl,ls-pcie-ep"
 #define MONO_USB0_ACPI_PATH          "\\_SB_.USB0"
 #define MONO_ESDHC_ACPI_PATH         "\\_SB_.SDC0"
 #define MONO_LEGACY_STREAM_PREFIX    0x0C00
@@ -51,6 +59,7 @@
 STATIC EFI_EVENT  mReadyToBootEvent;
 STATIC EFI_EVENT  mExitBootServicesEvent;
 STATIC BOOLEAN    mIortInstalled;
+STATIC BOOLEAN    mFdtPcieMapsPatched;
 
 typedef struct {
   UINT16    Segment;
@@ -82,6 +91,42 @@ IsValidFdtInstalled (
   }
 
   return (BOOLEAN)(FdtCheckHeader (Dtb) == 0);
+}
+
+STATIC
+BOOLEAN
+ShouldPatchInstalledFdt (
+  VOID
+  )
+{
+  MONO_DT_MANAGER_PROTOCOL  *DtManager;
+  EFI_STATUS                Status;
+  BOOLEAN                   Dynamic;
+
+  Status = gBS->LocateProtocol (
+                  &gMonoDtManagerProtocolGuid,
+                  NULL,
+                  (VOID **)&DtManager
+                  );
+  if (EFI_ERROR (Status)) {
+    return TRUE;
+  }
+
+  Status = DtManager->GetActiveDtbMode (DtManager, &Dynamic);
+  if (Status == EFI_NOT_FOUND) {
+    return TRUE;
+  }
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO FDT: cannot query DT manager mode: %r\n", Status));
+    return TRUE;
+  }
+
+  if (!Dynamic) {
+    DEBUG ((DEBUG_INFO, "MONO FDT: original DTB selected; skipping dynamic PCIe FDT fixups\n"));
+  }
+
+  return Dynamic;
 }
 
 STATIC
@@ -488,6 +533,48 @@ FindFdtPcieNode (
   IN UINT8  ControllerIndex
   )
 {
+  STATIC CONST CHAR8  *Compatibles[] = {
+    NXP_PCIE_FDT_COMPATIBLE_LEGACY,
+    NXP_PCIE_FDT_COMPATIBLE
+  };
+  CONST UINT32  *Reg;
+  UINT64        ControllerBase;
+  UINT64        NodeBase;
+  INT32         NodeOffset;
+  INT32         RegLength;
+  UINTN         Index;
+
+  ControllerBase = LS1046A_PCIE_DBI_BASE +
+                   (LS1046A_PCIE_DBI_STRIDE * ControllerIndex);
+
+  for (Index = 0; Index < ARRAY_SIZE (Compatibles); Index++) {
+    for (NodeOffset = FdtNodeOffsetByCompatible (Dtb, -1, Compatibles[Index]);
+         NodeOffset >= 0;
+         NodeOffset = FdtNodeOffsetByCompatible (Dtb, NodeOffset, Compatibles[Index]))
+    {
+      Reg = FdtGetProp (Dtb, NodeOffset, "reg", &RegLength);
+      if ((Reg == NULL) || (RegLength < (INT32)(4 * sizeof (UINT32)))) {
+        continue;
+      }
+
+      NodeBase = FdtReadAddressCellPair (Reg);
+      if (NodeBase == ControllerBase) {
+        return NodeOffset;
+      }
+    }
+  }
+
+  return -FDT_ERR_NOTFOUND;
+}
+
+STATIC
+INT32
+FindFdtNodeByCompatibleAddress (
+  IN VOID         *Dtb,
+  IN CONST CHAR8  *Compatible,
+  IN UINT8        ControllerIndex
+  )
+{
   CONST UINT32  *Reg;
   UINT64        ControllerBase;
   UINT64        NodeBase;
@@ -497,9 +584,9 @@ FindFdtPcieNode (
   ControllerBase = LS1046A_PCIE_DBI_BASE +
                    (LS1046A_PCIE_DBI_STRIDE * ControllerIndex);
 
-  for (NodeOffset = FdtNodeOffsetByCompatible (Dtb, -1, NXP_PCIE_FDT_COMPATIBLE);
+  for (NodeOffset = FdtNodeOffsetByCompatible (Dtb, -1, Compatible);
        NodeOffset >= 0;
-       NodeOffset = FdtNodeOffsetByCompatible (Dtb, NodeOffset, NXP_PCIE_FDT_COMPATIBLE))
+       NodeOffset = FdtNodeOffsetByCompatible (Dtb, NodeOffset, Compatible))
   {
     Reg = FdtGetProp (Dtb, NodeOffset, "reg", &RegLength);
     if ((Reg == NULL) || (RegLength < (INT32)(4 * sizeof (UINT32)))) {
@@ -513,6 +600,63 @@ FindFdtPcieNode (
   }
 
   return -FDT_ERR_NOTFOUND;
+}
+
+STATIC
+INT32
+FindFdtPcieEpNode (
+  IN VOID   *Dtb,
+  IN UINT8  ControllerIndex
+  )
+{
+  INT32  NodeOffset;
+
+  NodeOffset = FindFdtNodeByCompatibleAddress (
+                 Dtb,
+                 NXP_PCIE_EP_FDT_COMPATIBLE,
+                 ControllerIndex
+                 );
+  if (NodeOffset >= 0) {
+    return NodeOffset;
+  }
+
+  return FindFdtNodeByCompatibleAddress (
+           Dtb,
+           NXP_PCIE_EP_FDT_COMPATIBLE_LEGACY,
+           ControllerIndex
+           );
+}
+
+STATIC
+UINT8
+ReadPcieHeaderType (
+  IN UINT8  ControllerIndex
+  )
+{
+  UINT64  ControllerBase;
+
+  ControllerBase = LS1046A_PCIE_DBI_BASE +
+                   (LS1046A_PCIE_DBI_STRIDE * ControllerIndex);
+
+  return MmioRead8 ((UINTN)(ControllerBase + PCI_HEADER_TYPE_OFFSET)) &
+         HEADER_LAYOUT_CODE;
+}
+
+STATIC
+BOOLEAN
+PcieLinkIsUp (
+  IN UINT8  ControllerIndex
+  )
+{
+  UINT64  ControllerBase;
+  UINT32  Debug1;
+
+  ControllerBase = LS1046A_PCIE_DBI_BASE +
+                   (LS1046A_PCIE_DBI_STRIDE * ControllerIndex);
+  Debug1 = MmioRead32 ((UINTN)(ControllerBase + DW_PCIE_PORT_DEBUG1));
+
+  return ((Debug1 & DW_PCIE_PORT_DEBUG1_LINK_UP) != 0) &&
+         ((Debug1 & DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING) == 0);
 }
 
 STATIC
@@ -552,47 +696,56 @@ GetFdtMapPhandle (
     return EFI_INVALID_PARAMETER;
   }
 
+  if (ParentName != NULL) {
+    Cells = FdtGetProp (Dtb, NodeOffset, ParentName, &Length);
+    if ((Cells != NULL) && (Length >= (INT32)sizeof (UINT32))) {
+      *Phandle = Fdt32ToCpu (Cells[0]);
+      return EFI_SUCCESS;
+    }
+  }
+
   Cells = FdtGetProp (Dtb, NodeOffset, MapName, &Length);
   if ((Cells != NULL) && (Length >= (INT32)(2 * sizeof (UINT32)))) {
     *Phandle = Fdt32ToCpu (Cells[1]);
     return EFI_SUCCESS;
   }
 
-  if (ParentName == NULL) {
-    return EFI_NOT_FOUND;
-  }
-
-  Cells = FdtGetProp (Dtb, NodeOffset, ParentName, &Length);
-  if ((Cells == NULL) || (Length < (INT32)sizeof (UINT32))) {
-    return EFI_NOT_FOUND;
-  }
-
-  *Phandle = Fdt32ToCpu (Cells[0]);
-  return EFI_SUCCESS;
+  return EFI_NOT_FOUND;
 }
 
 STATIC
 EFI_STATUS
-DeleteFdtMapIfPresent (
+SetFdtMapFirstEntry (
   IN VOID         *Dtb,
   IN INT32        NodeOffset,
-  IN CONST CHAR8  *MapName
+  IN CONST CHAR8  *MapName,
+  IN UINT32       RequesterId,
+  IN UINT32       Phandle,
+  IN UINT32       StreamId
   )
 {
-  INT32  FdtStatus;
+  UINT32  Entry[4];
+  INT32   FdtStatus;
 
-  FdtStatus = FdtDelProp (Dtb, NodeOffset, MapName);
-  if ((FdtStatus == 0) || (FdtStatus == -FDT_ERR_NOTFOUND)) {
-    return EFI_SUCCESS;
+  Entry[0] = CpuToFdt32 (RequesterId);
+  Entry[1] = CpuToFdt32 (Phandle);
+  Entry[2] = CpuToFdt32 (StreamId);
+  Entry[3] = CpuToFdt32 (1);
+
+  FdtStatus = FdtSetProp (Dtb, NodeOffset, MapName, Entry, sizeof (Entry));
+  if (FdtStatus != 0) {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO FDT: failed to set first %a requester=0x%x stream=0x%x: %a\n",
+      MapName,
+      RequesterId,
+      StreamId,
+      FdtStrerror (FdtStatus)
+      ));
+    return EFI_DEVICE_ERROR;
   }
 
-  DEBUG ((
-    DEBUG_WARN,
-    "MONO FDT: failed to delete %a from PCIe node: %a\n",
-    MapName,
-    FdtStrerror (FdtStatus)
-    ));
-  return EFI_DEVICE_ERROR;
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -631,6 +784,38 @@ AppendFdtMapEntry (
 }
 
 STATIC
+UINT32
+GetFdtMapMaxStreamId (
+  IN VOID        *Dtb,
+  IN INT32       NodeOffset,
+  IN CONST CHAR8 *MapName
+  )
+{
+  CONST UINT32  *Cells;
+  INT32         Length;
+  INT32         Index;
+  INT32         CellCount;
+  UINT32        StreamId;
+  UINT32        MaxStreamId;
+
+  Cells = FdtGetProp (Dtb, NodeOffset, MapName, &Length);
+  if ((Cells == NULL) || (Length < (INT32)(4 * sizeof (UINT32)))) {
+    return 0;
+  }
+
+  MaxStreamId = 0;
+  CellCount = Length / (INT32)sizeof (UINT32);
+  for (Index = 0; Index + 3 < CellCount; Index += 4) {
+    StreamId = Fdt32ToCpu (Cells[Index + 2]);
+    if (StreamId > MaxStreamId) {
+      MaxStreamId = StreamId;
+    }
+  }
+
+  return MaxStreamId;
+}
+
+STATIC
 EFI_STATUS
 PatchFdtPcieNodeMaps (
   IN VOID                                   *Dtb,
@@ -645,6 +830,7 @@ PatchFdtPcieNodeMaps (
   CONST CHAR8                           *NodeName;
   UINT32                                MsiPhandle;
   UINT32                                IommuPhandle;
+  UINT32                                MsiStreamId;
   BOOLEAN                               MsiMapUpdated;
   UINTN                                 Index;
 
@@ -653,40 +839,40 @@ PatchFdtPcieNodeMaps (
 
   Status = GetFdtMapPhandle (Dtb, NodeOffset, "msi-map", "msi-parent", &MsiPhandle);
   if (!EFI_ERROR (Status)) {
-    Status = DeleteFdtMapIfPresent (Dtb, NodeOffset, "msi-map");
-    if (EFI_ERROR (Status)) {
-      ReturnStatus = Status;
-    } else {
-      MsiMapUpdated = FALSE;
-      for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
-        Mapping = &StreamIdMap->Mappings[Index];
-        if (Mapping->ControllerIndex != ControllerIndex) {
-          continue;
-        }
-
-        Status = AppendFdtMapEntry (
-                   Dtb,
-                   NodeOffset,
-                   "msi-map",
-                   Mapping->RequesterId,
-                   MsiPhandle,
-                   Mapping->StreamId
-                   );
-        if (EFI_ERROR (Status)) {
-          ReturnStatus = Status;
-        } else {
-          MsiMapUpdated = TRUE;
-        }
+    MsiMapUpdated = FALSE;
+    for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
+      Mapping = &StreamIdMap->Mappings[Index];
+      if (Mapping->ControllerIndex != ControllerIndex) {
+        continue;
       }
 
-      DEBUG ((
-        MsiMapUpdated ? DEBUG_INFO : DEBUG_WARN,
-        "MONO FDT: %a PCIe node %a msi-map phandle=0x%x\n",
-        MsiMapUpdated ? "updated" : "did not update",
-        (NodeName != NULL) ? NodeName : "<unknown>",
-        MsiPhandle
-        ));
+      MsiStreamId = Mapping->StreamId;
+      if (MsiStreamId <= GetFdtMapMaxStreamId (Dtb, NodeOffset, "msi-map")) {
+        MsiStreamId = GetFdtMapMaxStreamId (Dtb, NodeOffset, "msi-map") + 1;
+      }
+
+      Status = AppendFdtMapEntry (
+                 Dtb,
+                 NodeOffset,
+                 "msi-map",
+                 Mapping->RequesterId,
+                 MsiPhandle,
+                 MsiStreamId
+                 );
+      if (EFI_ERROR (Status)) {
+        ReturnStatus = Status;
+      } else {
+        MsiMapUpdated = TRUE;
+      }
     }
+
+    DEBUG ((
+      MsiMapUpdated ? DEBUG_INFO : DEBUG_WARN,
+      "MONO FDT: %a PCIe node %a msi-map phandle=0x%x\n",
+      MsiMapUpdated ? "updated" : "preserved",
+      (NodeName != NULL) ? NodeName : "<unknown>",
+      MsiPhandle
+      ));
   } else {
     DEBUG ((
       DEBUG_WARN,
@@ -697,16 +883,22 @@ PatchFdtPcieNodeMaps (
 
   Status = GetFdtMapPhandle (Dtb, NodeOffset, "iommu-map", NULL, &IommuPhandle);
   if (!EFI_ERROR (Status)) {
-    Status = DeleteFdtMapIfPresent (Dtb, NodeOffset, "iommu-map");
-    if (EFI_ERROR (Status)) {
-      ReturnStatus = Status;
-    } else {
-      for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
-        Mapping = &StreamIdMap->Mappings[Index];
-        if (Mapping->ControllerIndex != ControllerIndex) {
-          continue;
-        }
+    for (Index = 0; Index < StreamIdMap->MappingCount; Index++) {
+      Mapping = &StreamIdMap->Mappings[Index];
+      if (Mapping->ControllerIndex != ControllerIndex) {
+        continue;
+      }
 
+      if (Mapping->RequesterId == 0) {
+        Status = SetFdtMapFirstEntry (
+                   Dtb,
+                   NodeOffset,
+                   "iommu-map",
+                   Mapping->RequesterId,
+                   IommuPhandle,
+                   Mapping->StreamId
+                   );
+      } else {
         Status = AppendFdtMapEntry (
                    Dtb,
                    NodeOffset,
@@ -715,9 +907,10 @@ PatchFdtPcieNodeMaps (
                    IommuPhandle,
                    Mapping->StreamId
                    );
-        if (EFI_ERROR (Status)) {
-          ReturnStatus = Status;
-        }
+      }
+
+      if (EFI_ERROR (Status)) {
+        ReturnStatus = Status;
       }
     }
   }
@@ -743,6 +936,9 @@ PatchFdtPcieStatuses (
   INT32    FdtStatus;
   INT32    NodeOffset;
   BOOLEAN  Enabled;
+  BOOLEAN  RcMode;
+  BOOLEAN  LinkUp;
+  UINT8    HeaderType;
 
   GetSerDesProtocolMap (&SerDesProtocolMap);
 
@@ -761,18 +957,27 @@ PatchFdtPcieStatuses (
     }
 
     Enabled = (SerDesProtocolMap & (BIT0 << (ControllerIndex + 1))) != 0;
+    HeaderType = 0xff;
+    RcMode = FALSE;
+    LinkUp = FALSE;
+    if (Enabled) {
+      HeaderType = ReadPcieHeaderType ((UINT8)ControllerIndex);
+      RcMode = HeaderType == HEADER_TYPE_PCI_TO_PCI_BRIDGE;
+      LinkUp = PcieLinkIsUp ((UINT8)ControllerIndex);
+    }
+
     FdtStatus = FdtSetPropString (
                   Dtb,
                   NodeOffset,
                   "status",
-                  Enabled ? "okay" : "disabled"
+                  (Enabled && RcMode && LinkUp) ? "okay" : "disabled"
                   );
     if (FdtStatus != 0) {
       DEBUG ((
         DEBUG_WARN,
         "MONO FDT: failed to set PCIe controller=%u status=%a: %a\n",
         (UINT32)ControllerIndex + 1,
-        Enabled ? "okay" : "disabled",
+        (Enabled && RcMode && LinkUp) ? "okay" : "disabled",
         FdtStrerror (FdtStatus)
         ));
       continue;
@@ -780,9 +985,41 @@ PatchFdtPcieStatuses (
 
     DEBUG ((
       DEBUG_INFO,
-      "MONO FDT: PCIe controller=%u status=%a\n",
+      "MONO FDT: PCIe controller=%u RC status=%a header=0x%x link=%a\n",
       (UINT32)ControllerIndex + 1,
-      Enabled ? "okay" : "disabled"
+      (Enabled && RcMode && LinkUp) ? "okay" : "disabled",
+      HeaderType,
+      LinkUp ? "up" : "down"
+      ));
+
+    NodeOffset = FindFdtPcieEpNode (Dtb, (UINT8)ControllerIndex);
+    if (NodeOffset < 0) {
+      continue;
+    }
+
+    FdtStatus = FdtSetPropString (
+                  Dtb,
+                  NodeOffset,
+                  "status",
+                  (Enabled && !RcMode) ? "okay" : "disabled"
+                  );
+    if (FdtStatus != 0) {
+      DEBUG ((
+        DEBUG_WARN,
+        "MONO FDT: failed to set PCIe EP controller=%u status=%a: %a\n",
+        (UINT32)ControllerIndex + 1,
+        (Enabled && !RcMode) ? "okay" : "disabled",
+        FdtStrerror (FdtStatus)
+        ));
+      continue;
+    }
+
+    DEBUG ((
+      DEBUG_INFO,
+      "MONO FDT: PCIe controller=%u EP status=%a header=0x%x\n",
+      (UINT32)ControllerIndex + 1,
+      (Enabled && !RcMode) ? "okay" : "disabled",
+      HeaderType
       ));
   }
 }
@@ -796,6 +1033,10 @@ PatchInstalledFdtPcieStatuses (
   EFI_STATUS  Status;
   VOID        *Dtb;
   INT32       FdtStatus;
+
+  if (!ShouldPatchInstalledFdt ()) {
+    return EFI_ALREADY_STARTED;
+  }
 
   Status = EfiGetSystemConfigurationTable (&gFdtTableGuid, &Dtb);
   if (EFI_ERROR (Status) || (Dtb == NULL)) {
@@ -826,6 +1067,14 @@ PatchFdtPcieMaps (
   INT32       NodeOffset;
   UINTN       Index;
   UINT8       ControllerIndex;
+
+  if (!ShouldPatchInstalledFdt ()) {
+    return EFI_ALREADY_STARTED;
+  }
+
+  if (mFdtPcieMapsPatched) {
+    return EFI_ALREADY_STARTED;
+  }
 
   if ((StreamIdMap == NULL) || (StreamIdMap->MappingCount == 0)) {
     return EFI_NOT_FOUND;
@@ -865,6 +1114,10 @@ PatchFdtPcieMaps (
     if (EFI_ERROR (Status)) {
       ReturnStatus = Status;
     }
+  }
+
+  if (!EFI_ERROR (ReturnStatus)) {
+    mFdtPcieMapsPatched = TRUE;
   }
 
   return ReturnStatus;

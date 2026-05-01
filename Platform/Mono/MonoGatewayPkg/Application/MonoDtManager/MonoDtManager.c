@@ -27,6 +27,7 @@ PrintCurrentStatus (
   EFI_STATUS                     Status;
   UINTN                          Count;
   INTN                           ActiveIndex;
+  BOOLEAN                        Dynamic;
 
   Status = Manager->GetEmbeddedDtbs (Manager, &Count, &Dtbs);
   if (EFI_ERROR (Status)) {
@@ -45,7 +46,17 @@ PrintCurrentStatus (
     return;
   }
 
-  Print (L"Current device tree: %s\r\n", Dtbs[ActiveIndex].Name);
+  Status = Manager->GetActiveDtbMode (Manager, &Dynamic);
+  if (EFI_ERROR (Status)) {
+    Print (L"Current device tree: %s\r\n", Dtbs[ActiveIndex].Name);
+    return;
+  }
+
+  Print (
+    L"Current device tree: %s (%s)\r\n",
+    Dtbs[ActiveIndex].Name,
+    Dynamic ? L"dynamic" : L"original"
+    );
 }
 
 STATIC

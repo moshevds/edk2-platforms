@@ -173,6 +173,7 @@ READ_LOCK_STATUS   = TRUE
   #
   # UEFI application (Shell Embedded Boot Loader)
   #
+  INF Platform/Mono/MonoGatewayPkg/Application/FITBoot/FITBoot.inf
   INF Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
   INF Platform/Mono/MonoGatewayPkg/Application/MonoDtManager/MonoDtManager.inf
   INF ShellPkg/Application/Shell/Shell.inf

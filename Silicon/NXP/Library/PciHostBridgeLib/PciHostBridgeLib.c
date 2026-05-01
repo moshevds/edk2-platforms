@@ -1511,13 +1511,6 @@ PciHostBridgeGetRootBridges (
     mPciRootBridges[Loop].PMemAbove4G.Limit     = 0;
     mPciRootBridges[Loop].DevicePath            = (EFI_DEVICE_PATH_PROTOCOL *)&mEfiPciRootBridgeDevicePath[Idx];
 
-    //
-    // Match the old qoriq flow by assigning a StreamID/LUT entry to the root
-    // requester immediately. Endpoint Requester IDs are programmed from PCI_IO
-    // protocol notifications and from the explicit refresh before IORT install.
-    //
-    (VOID)MapPcieRequesterId (&mLsPcie[Idx], Idx, 0, 0, 0);
-
     Loop++;
   }
 

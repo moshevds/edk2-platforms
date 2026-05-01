@@ -161,6 +161,7 @@
   Platform/Mono/MonoGatewayPkg/Drivers/NxpPcieIortDxe/NxpPcieIortDxe.inf
   MdeModulePkg/Bus/Usb/UsbBusDxe/UsbBusDxe.inf
   MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
+  Platform/Mono/MonoGatewayPkg/Application/FITBoot/FITBoot.inf
   Platform/Mono/MonoGatewayPkg/Application/MonoSelfTest/MonoSelfTest.inf
   Platform/Mono/MonoGatewayPkg/Application/MonoDtManager/MonoDtManager.inf
 ##

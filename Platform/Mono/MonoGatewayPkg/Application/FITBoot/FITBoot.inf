@@ -1,0 +1,38 @@
+[Defines]
+  INF_VERSION                    = 0x00010005
+  BASE_NAME                      = FITBoot
+  FILE_GUID                      = 0f124c50-4d5a-4f83-8f5e-a600ccf7d8b9
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 0.1
+  ENTRY_POINT                    = UefiMain
+
+[Sources]
+  FITBoot.c
+
+[Packages]
+  CryptoPkg/CryptoPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  ShellPkg/ShellPkg.dec
+
+[LibraryClasses]
+  BaseCryptLib
+  BaseLib
+  BaseMemoryLib
+  DevicePathLib
+  FdtLib
+  MemoryAllocationLib
+  ShellLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Guids]
+  gFdtTableGuid
+  gLinuxEfiInitrdMediaGuid
+
+[Protocols]
+  gEfiDevicePathProtocolGuid
+  gEfiLoadedImageProtocolGuid
+  gEfiLoadFile2ProtocolGuid
+  gEfiShellParametersProtocolGuid
