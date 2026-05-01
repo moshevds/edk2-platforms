@@ -32,8 +32,36 @@ STATIC BOOLEAN   mMonoSfpMuxResetDone;
 #define FMAN_MDIO_PHYID1            2U
 #define FMAN_MDIO_PHYID2            3U
 #define FMAN_MDIO_BMCR              0U
+#define FMAN_MDIO_BMSR              1U
+#define FMAN_MDIO_ADVERTISE         4U
+#define FMAN_MDIO_CTRL1000          9U
+#define FMAN_MDIO_ESTATUS           0x0fU
+#define FMAN_MDIO_MII_MMD_CTRL      0x0dU
+#define FMAN_MDIO_MII_MMD_DATA      0x0eU
+#define FMAN_MDIO_MII_MMD_NOINCR    0x4000U
 #define FMAN_MDIO_DEVAD_VEND1       0x1eU
 #define FMAN_MDIO_BMCR_RESET        0x8000U
+#define FMAN_MDIO_BMCR_ANRESTART    0x0200U
+#define FMAN_MDIO_BMCR_ISOLATE      0x0400U
+#define FMAN_MDIO_BMCR_ANENABLE     0x1000U
+#define FMAN_MDIO_BMSR_ESTATEN      0x0100U
+#define FMAN_MDIO_BMSR_ANEGCAPABLE  0x0008U
+#define FMAN_MDIO_BMSR_10HALF       0x0800U
+#define FMAN_MDIO_BMSR_10FULL       0x1000U
+#define FMAN_MDIO_BMSR_100HALF      0x2000U
+#define FMAN_MDIO_BMSR_100FULL      0x4000U
+#define FMAN_MDIO_ADVERTISE_ALL     0x01e0U
+#define FMAN_MDIO_ADVERTISE_10HALF  0x0020U
+#define FMAN_MDIO_ADVERTISE_10FULL  0x0040U
+#define FMAN_MDIO_ADVERTISE_100HALF 0x0080U
+#define FMAN_MDIO_ADVERTISE_100FULL 0x0100U
+#define FMAN_MDIO_ADVERTISE_100BASE4 0x0200U
+#define FMAN_MDIO_ADVERTISE_PAUSE   0x0400U
+#define FMAN_MDIO_ADVERTISE_ASYM_PAUSE 0x0800U
+#define FMAN_MDIO_CTRL1000_1000HALF 0x0100U
+#define FMAN_MDIO_CTRL1000_1000FULL 0x0200U
+#define FMAN_MDIO_ESTATUS_1000THALF 0x1000U
+#define FMAN_MDIO_ESTATUS_1000TFULL 0x2000U
 #define FMAN_MONO_GPY115C_PHY_ID    0x67c9df10U
 #define FMAN_MONO_GPY115C_LED_REG   0x1bU
 #define FMAN_MONO_GPY115C_LED_POL   0x0f00U
@@ -890,6 +918,216 @@ FmanMdioWriteAtBase (
 
 STATIC
 EFI_STATUS
+FmanMdioWriteMmdC22AtBase (
+  IN FMAN_PRIVATE_DATA  *Private,
+  IN UINTN              MdioBase,
+  IN UINT32             PortAddress,
+  IN UINT32             DeviceAddress,
+  IN UINT32             Register,
+  IN UINT16             Value
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             MdioBase,
+             PortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_MII_MMD_CTRL,
+             (UINT16)DeviceAddress
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             MdioBase,
+             PortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_MII_MMD_DATA,
+             (UINT16)Register
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = FmanMdioWriteAtBase (
+             Private,
+             MdioBase,
+             PortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_MII_MMD_CTRL,
+             (UINT16)(DeviceAddress | FMAN_MDIO_MII_MMD_NOINCR)
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  return FmanMdioWriteAtBase (
+           Private,
+           MdioBase,
+           PortAddress,
+           FMAN_MDIO_DEVAD_NONE,
+           FMAN_MDIO_MII_MMD_DATA,
+           Value
+           );
+}
+
+STATIC
+EFI_STATUS
+FmanMonoGpy115cGenphyConfig (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      Adv;
+  UINT16      Bmcr;
+  UINT16      Bmsr;
+  UINT16      Ctrl1000;
+  UINT16      Estatus;
+  UINT16      NewAdv;
+  UINT16      NewCtrl1000;
+
+  Status = FmanMdioReadAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_BMSR,
+             &Bmsr
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = FmanMdioReadAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_ADVERTISE,
+             &Adv
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  NewAdv = Adv & ~(FMAN_MDIO_ADVERTISE_ALL |
+                   FMAN_MDIO_ADVERTISE_100BASE4 |
+                   FMAN_MDIO_ADVERTISE_PAUSE |
+                   FMAN_MDIO_ADVERTISE_ASYM_PAUSE);
+  if ((Bmsr & FMAN_MDIO_BMSR_10HALF) != 0) {
+    NewAdv |= FMAN_MDIO_ADVERTISE_10HALF;
+  }
+
+  if ((Bmsr & FMAN_MDIO_BMSR_10FULL) != 0) {
+    NewAdv |= FMAN_MDIO_ADVERTISE_10FULL;
+  }
+
+  if ((Bmsr & FMAN_MDIO_BMSR_100HALF) != 0) {
+    NewAdv |= FMAN_MDIO_ADVERTISE_100HALF;
+  }
+
+  if ((Bmsr & FMAN_MDIO_BMSR_100FULL) != 0) {
+    NewAdv |= FMAN_MDIO_ADVERTISE_100FULL;
+  }
+
+  if (NewAdv != Adv) {
+    Status = FmanMdioWriteAtBase (
+               Private,
+               Private->PhyMdioBase,
+               Private->PhyPortAddress,
+               FMAN_MDIO_DEVAD_NONE,
+               FMAN_MDIO_ADVERTISE,
+               NewAdv
+               );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+  }
+
+  if ((Bmsr & FMAN_MDIO_BMSR_ESTATEN) != 0) {
+    Status = FmanMdioReadAtBase (
+               Private,
+               Private->PhyMdioBase,
+               Private->PhyPortAddress,
+               FMAN_MDIO_DEVAD_NONE,
+               FMAN_MDIO_ESTATUS,
+               &Estatus
+               );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    Status = FmanMdioReadAtBase (
+               Private,
+               Private->PhyMdioBase,
+               Private->PhyPortAddress,
+               FMAN_MDIO_DEVAD_NONE,
+               FMAN_MDIO_CTRL1000,
+               &Ctrl1000
+               );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    NewCtrl1000 = Ctrl1000 & ~(FMAN_MDIO_CTRL1000_1000HALF |
+                               FMAN_MDIO_CTRL1000_1000FULL);
+    if ((Estatus & FMAN_MDIO_ESTATUS_1000THALF) != 0) {
+      NewCtrl1000 |= FMAN_MDIO_CTRL1000_1000HALF;
+    }
+
+    if ((Estatus & FMAN_MDIO_ESTATUS_1000TFULL) != 0) {
+      NewCtrl1000 |= FMAN_MDIO_CTRL1000_1000FULL;
+    }
+
+    if (NewCtrl1000 != Ctrl1000) {
+      Status = FmanMdioWriteAtBase (
+                 Private,
+                 Private->PhyMdioBase,
+                 Private->PhyPortAddress,
+                 FMAN_MDIO_DEVAD_NONE,
+                 FMAN_MDIO_CTRL1000,
+                 NewCtrl1000
+                 );
+      if (EFI_ERROR (Status)) {
+        return Status;
+      }
+    }
+  }
+
+  if ((Bmsr & FMAN_MDIO_BMSR_ANEGCAPABLE) == 0) {
+    return EFI_SUCCESS;
+  }
+
+  Status = FmanMdioReadAtBase (
+             Private,
+             Private->PhyMdioBase,
+             Private->PhyPortAddress,
+             FMAN_MDIO_DEVAD_NONE,
+             FMAN_MDIO_BMCR,
+             &Bmcr
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Bmcr |= FMAN_MDIO_BMCR_ANENABLE | FMAN_MDIO_BMCR_ANRESTART;
+  Bmcr &= ~FMAN_MDIO_BMCR_ISOLATE;
+  return FmanMdioWriteAtBase (
+           Private,
+           Private->PhyMdioBase,
+           Private->PhyPortAddress,
+           FMAN_MDIO_DEVAD_NONE,
+           FMAN_MDIO_BMCR,
+           Bmcr
+           );
+}
+
+STATIC
+EFI_STATUS
 FmanSetupSgmiiInternalPhy (
   IN FMAN_PRIVATE_DATA  *Private
   )
@@ -1128,7 +1366,7 @@ FmanMonoGpy115cInit (
     return Status;
   }
 
-  Status = FmanMdioWriteAtBase (
+  Status = FmanMdioWriteMmdC22AtBase (
              Private,
              Private->PhyMdioBase,
              Private->PhyPortAddress,
@@ -1141,7 +1379,7 @@ FmanMonoGpy115cInit (
     return Status;
   }
 
-  Status = FmanMdioWriteAtBase (
+  Status = FmanMdioWriteMmdC22AtBase (
              Private,
              Private->PhyMdioBase,
              Private->PhyPortAddress,
@@ -1154,6 +1392,48 @@ FmanMonoGpy115cInit (
     return Status;
   }
 
+  Status = FmanMonoGpy115cGenphyConfig (Private);
+  if (EFI_ERROR (Status)) {
+    FMAN_ERROR ("port %u GPY115C generic PHY config failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+FmanHwPrepareExternalPhy (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  EFI_STATUS  Status;
+
+  if ((Private == NULL) || Private->Is10G) {
+    FMAN_INFO ("external PHY prepare skipped private=%p is10g=%u", Private, (Private != NULL) ? Private->Is10G : 0);
+    return EFI_SUCCESS;
+  }
+
+  FMAN_INFO (
+    "port %u external PHY prepare begin mdio=0x%Lx phy=%u pcs=%u",
+    Private->PortId,
+    (UINT64)Private->PhyMdioBase,
+    Private->PhyPortAddress,
+    Private->PcsPortAddress
+    );
+
+  Status = FmanSetupSgmiiInternalPhy (Private);
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u external PHY prepare SGMII PCS setup failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  Status = FmanMonoGpy115cInit (Private);
+  if (EFI_ERROR (Status)) {
+    FMAN_WARN ("port %u external PHY prepare GPY115C init failed: %r", Private->PortId, Status);
+    return Status;
+  }
+
+  FMAN_INFO ("port %u external PHY prepare complete", Private->PortId);
   return EFI_SUCCESS;
 }
 

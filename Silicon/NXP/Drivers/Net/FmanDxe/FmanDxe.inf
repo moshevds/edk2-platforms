@@ -12,7 +12,7 @@
   INF_VERSION                    = 0x0001001A
   BASE_NAME                      = FmanDxe
   FILE_GUID                      = ccf7de2b-2285-4b4f-a8fd-d8ab320f0b4f
-  MODULE_TYPE                    = UEFI_DRIVER
+  MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 0.1
   ENTRY_POINT                    = FmanEntryPoint
 
@@ -41,7 +41,6 @@
   I2cLib
   IoLib
   MemoryAllocationLib
-  NetLib
   PrintLib
   TimerLib
   UefiBootServicesTableLib
@@ -60,3 +59,6 @@
   gMonoNetConfigGuid                    ## CONSUMES
   gNxpNonDiscoverableI2cMasterGuid       ## CONSUMES
   gNxpNonDiscoverableFmanNetGuid         ## TO_START
+
+[Depex]
+  TRUE

@@ -49,6 +49,68 @@ STATIC FMAN_DEVICE_PATH mFmanDevicePathTemplate = {
 };
 
 STATIC
+VOID
+EFIAPI
+FmanReadyToBoot (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  EFI_HANDLE              *Handles;
+  NON_DISCOVERABLE_DEVICE *Device;
+  EFI_STATUS              Status;
+  UINTN                   Count;
+  UINTN                   Index;
+  UINTN                   FmanCount;
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot callback entered\n"));
+
+  Status = gBS->LocateHandleBuffer (
+                  ByProtocol,
+                  &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                  NULL,
+                  &Count,
+                  &Handles
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot locate non-discoverable handles failed: %r\n", Status));
+    return;
+  }
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot found %Lu non-discoverable handles\n", (UINT64)Count));
+  FmanCount = 0;
+  for (Index = 0; Index < Count; Index++) {
+    Status = gBS->OpenProtocol (
+                    Handles[Index],
+                    &gEdkiiNonDiscoverableDeviceProtocolGuid,
+                    (VOID **)&Device,
+                    gFmanDriverBinding.DriverBindingHandle,
+                    Handles[Index],
+                    EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                    );
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot open handle %Lu failed: %r\n", (UINT64)Index, Status));
+      continue;
+    }
+
+    if (CompareGuid (Device->Type, &gNxpNonDiscoverableFmanNetGuid)) {
+      FmanCount++;
+      DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot connecting FMan handle %Lu\n", (UINT64)Index));
+      Status = gBS->ConnectController (Handles[Index], NULL, NULL, TRUE);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot FMan handle %Lu connect failed: %r\n", (UINT64)Index, Status));
+      } else {
+        DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot FMan handle %Lu connected\n", (UINT64)Index));
+      }
+    }
+  }
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot processed %Lu FMan handles\n", (UINT64)FmanCount));
+  FreePool (Handles);
+  gBS->CloseEvent (Event);
+}
+
+STATIC
 EFI_STATUS
 FmanReadGatewayEeprom (
   IN  UINT16  Offset,
@@ -534,8 +596,11 @@ FmanDriverBindingStart (
   FMAN_PRIVATE_DATA        *Private;
   EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR  *Resources;
 
+  DEBUG ((DEBUG_ERROR, "FmanDxe: DriverBindingStart entered controller=%p\n", ControllerHandle));
+
   Private = AllocateZeroPool (sizeof (*Private));
   if (Private == NULL) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: DriverBindingStart private allocation failed\n"));
     return EFI_OUT_OF_RESOURCES;
   }
 
@@ -548,6 +613,7 @@ FmanDriverBindingStart (
                   EFI_OPEN_PROTOCOL_BY_DRIVER
                   );
   if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: DriverBindingStart open non-discoverable failed: %r\n", Status));
     goto FreePrivate;
   }
 
@@ -591,10 +657,37 @@ FmanDriverBindingStart (
   Private->PhyMdioBase = FmanGetPhyMdioBase (Private);
   Private->PhyPortAddress = FmanGetPhyPortAddress (Private);
 
+  DEBUG ((
+    DEBUG_ERROR,
+    "FmanDxe: DriverBindingStart resources memac=0x%Lx mdio=0x%Lx rx=0x%Lx tx=0x%Lx fman=0x%Lx is10g=%u phy-mdio=0x%Lx phy=%u\n",
+    (UINT64)Private->MemacBase,
+    (UINT64)Private->MdioBase,
+    (UINT64)Private->RxPortBase,
+    (UINT64)Private->TxPortBase,
+    (UINT64)Private->FmanBase,
+    Private->Is10G,
+    (UINT64)Private->PhyMdioBase,
+    Private->PhyPortAddress
+    ));
+
   SetMem (&Private->Mode.BroadcastAddress, sizeof (EFI_MAC_ADDRESS), 0xff);
   if (!FmanSelectMacAddress (Private)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: DriverBindingStart MAC selection failed\n"));
     Status = EFI_NOT_FOUND;
     goto CloseNonDiscoverable;
+  }
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: DriverBindingStart preparing external PHY for board port %u\n", Private->PortId));
+  Status = FmanHwPrepareExternalPhy (Private);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "FmanDxe: external PHY preparation failed for board port %u: %r\n",
+      Private->PortId,
+      Status
+      ));
+  } else {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: external PHY preparation complete for board port %u\n", Private->PortId));
   }
 
   Private->DevicePath = AllocateCopyPool (sizeof (FMAN_DEVICE_PATH), &mFmanDevicePathTemplate);
@@ -708,12 +801,37 @@ FmanEntryPoint (
   IN EFI_SYSTEM_TABLE  *SystemTable
   )
 {
-  return EfiLibInstallDriverBindingComponentName2 (
-           ImageHandle,
-           SystemTable,
-           &gFmanDriverBinding,
-           ImageHandle,
-           NULL,
-           NULL
-           );
+  EFI_EVENT   ReadyToBootEvent;
+  EFI_STATUS  Status;
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: EntryPoint entered\n"));
+
+  Status = EfiLibInstallDriverBindingComponentName2 (
+             ImageHandle,
+             SystemTable,
+             &gFmanDriverBinding,
+             ImageHandle,
+             NULL,
+             NULL
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: driver binding install failed: %r\n", Status));
+    return Status;
+  }
+
+  DEBUG ((DEBUG_ERROR, "FmanDxe: driver binding installed\n"));
+
+  Status = EfiCreateEventReadyToBootEx (
+             TPL_CALLBACK,
+             FmanReadyToBoot,
+             NULL,
+             &ReadyToBootEvent
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: failed to create ReadyToBoot event: %r\n", Status));
+  } else {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot event created\n"));
+  }
+
+  return EFI_SUCCESS;
 }

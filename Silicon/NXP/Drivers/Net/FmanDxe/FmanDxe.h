@@ -21,7 +21,6 @@
 #include <Library/GpioLib.h>
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
-#include <Library/NetLib.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
@@ -34,6 +33,15 @@
 #include <Protocol/SimpleNetwork.h>
 
 #define FMAN_DRIVER_SIGNATURE  SIGNATURE_32 ('F', 'M', 'A', 'N')
+
+#define NET_ETHER_ADDR_LEN  6
+#define NET_IFTYPE_ETHERNET 0x01
+
+typedef struct {
+  UINT8     DstMac[NET_ETHER_ADDR_LEN];
+  UINT8     SrcMac[NET_ETHER_ADDR_LEN];
+  UINT16    EtherType;
+} ETHER_HEAD;
 
 #define FMAN_UCODE_FILE_GUID \
   { 0x5f0b8d16, 0x8c6f, 0x4c8a, { 0x8d, 0x77, 0xcd, 0xbd, 0xb1, 0x6d, 0x8d, 0x80 } }
@@ -540,6 +548,11 @@ FmanHwReset (
 
 EFI_STATUS
 FmanHwInitialize (
+  IN FMAN_PRIVATE_DATA  *Private
+  );
+
+EFI_STATUS
+FmanHwPrepareExternalPhy (
   IN FMAN_PRIVATE_DATA  *Private
   );
 

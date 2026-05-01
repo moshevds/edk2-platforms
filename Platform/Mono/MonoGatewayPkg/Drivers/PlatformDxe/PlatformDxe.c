@@ -69,6 +69,7 @@ typedef struct {
 #define MONO_GATEWAY_PCA9545_CTRL_REG     0x00
 #define MONO_GATEWAY_I2C_BASE(Controller) \
   (MONO_GATEWAY_I2C0_PHYS_ADDRESS + ((Controller) * MONO_GATEWAY_I2C_SIZE))
+#define MONO_GATEWAY_I2C1_PHYS_ADDRESS    MONO_GATEWAY_I2C_BASE (1)
 #define MONO_GATEWAY_I2C2_PHYS_ADDRESS    MONO_GATEWAY_I2C_BASE (2)
 #define MONO_GATEWAY_PCA9545_CHANNEL(Channel)  (1U << (Channel))
 #define MONO_GATEWAY_RETIMER_MUX_CHANNEL       0
@@ -121,6 +122,8 @@ STATIC CAAM_DESCRIPTOR_SET      mCaamDesc;
 STATIC EFI_EVENT                mMonoI2c0MuxNotifyEvent;
 STATIC VOID                     *mMonoI2c0MuxNotifyRegistration;
 STATIC BOOLEAN                  mMonoI2c0MuxResetDone;
+STATIC EFI_EVENT                mMonoReadyToBootEvent;
+STATIC BOOLEAN                  mMonoSfpMuxResetDone;
 STATIC BOOLEAN                  mMonoPcieSidebandDiagnosticsStarted;
 STATIC BOOLEAN                  mMonoPcieSidebandDiagnosticsDone;
 STATIC BOOLEAN                  mMonoPcieI2c0DiagnosticsDone;
@@ -897,6 +900,72 @@ ResetMonoI2c0Mux (
 }
 
 STATIC
+EFI_STATUS
+ResetMonoSfpMux (
+  VOID
+  )
+{
+  EFI_I2C_MASTER_PROTOCOL  *I2cMaster;
+  EFI_STATUS               Status;
+  UINT8                    CtrlValue;
+
+  if (mMonoSfpMuxResetDone) {
+    return EFI_SUCCESS;
+  }
+
+  Status = GetI2cMasterForBase (MONO_GATEWAY_I2C1_PHYS_ADDRESS, &I2cMaster);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("could not get Mono SFP i2c1 master for mux reset: %r", Status);
+    return Status;
+  }
+
+  CtrlValue = 0x00;
+  Status = I2cWrite (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             &CtrlValue,
+             sizeof (CtrlValue)
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("failed to reset Mono SFP PCA9545 mux: %r", Status);
+    return Status;
+  }
+
+  Status = I2cRegRead8 (
+             I2cMaster,
+             MONO_GATEWAY_I2C_MUX_ADDRESS,
+             MONO_GATEWAY_PCA9545_CTRL_REG,
+             &CtrlValue
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("Mono SFP PCA9545 mux readback failed: %r", Status);
+  } else if ((CtrlValue & 0x0fU) != 0x00U) {
+    PLATFORM_WARN ("Mono SFP PCA9545 mux reset readback unexpected value 0x%02x", CtrlValue);
+  } else {
+    PLATFORM_INFO ("Mono SFP PCA9545 mux reset to idle");
+  }
+
+  mMonoSfpMuxResetDone = TRUE;
+  return EFI_SUCCESS;
+}
+
+STATIC
+VOID
+EFIAPI
+MonoReadyToBoot (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  ResetMonoSfpMux ();
+
+  if (mMonoReadyToBootEvent != NULL) {
+    gBS->CloseEvent (mMonoReadyToBootEvent);
+    mMonoReadyToBootEvent = NULL;
+  }
+}
+
+STATIC
 VOID
 EFIAPI
 MonoI2c0MuxNotify (
@@ -1100,6 +1169,18 @@ PlatformDxeEntryPoint (
   Status = RegisterMonoI2c0MuxNotify ();
   ASSERT_EFI_ERROR (Status);
   if (EFI_ERROR (Status) && (Status != EFI_ALREADY_STARTED)) {
+    return Status;
+  }
+
+  Status = EfiCreateEventReadyToBootEx (
+             TPL_CALLBACK,
+             MonoReadyToBoot,
+             NULL,
+             &mMonoReadyToBootEvent
+             );
+  ASSERT_EFI_ERROR (Status);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("failed to create Mono ReadyToBoot event: %r", Status);
     return Status;
   }
 
