@@ -43,6 +43,7 @@
   UefiBootServicesTableLib
   UefiDriverEntryPoint
   UefiLib
+  UefiRuntimeServicesTableLib
 
 [Protocols]
   gEfiLoadedImageProtocolGuid
@@ -52,6 +53,7 @@
 
 [Guids]
   gFdtTableGuid
+  gMonoGatewayTokenSpaceGuid
 
 [FixedPcd]
   gNxpQoriqLsTokenSpaceGuid.PcdBmanFbprBase

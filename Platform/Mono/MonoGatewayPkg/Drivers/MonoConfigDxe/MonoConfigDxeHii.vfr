@@ -232,6 +232,15 @@ formset
       flags  = CHECKBOX_DEFAULT | CHECKBOX_DEFAULT_MFG | RESET_REQUIRED,
     endcheckbox;
 
+    oneof varid = MonoAcpiDeviceConfig.Sfp1Mode,
+      prompt = STRING_TOKEN (STR_MONO_DEVICE_SFP1_MODE_PROMPT),
+      help   = STRING_TOKEN (STR_MONO_DEVICE_SFP1_MODE_HELP),
+      flags  = RESET_REQUIRED,
+      option text = STRING_TOKEN (STR_MONO_DEVICE_SFP1_MODE_XFI_OPTION), value = MONO_SFP1_MODE_XFI_10G, flags = DEFAULT;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_SFP1_MODE_1000BASEX_OPTION), value = MONO_SFP1_MODE_1000BASEX_EXPERIMENT, flags = 0;
+      option text = STRING_TOKEN (STR_MONO_DEVICE_SFP1_MODE_100BASEX_OPTION), value = MONO_SFP1_MODE_100BASEX_EXPERIMENT, flags = 0;
+    endoneof;
+
     checkbox varid = MonoAcpiDeviceConfig.Eth1,
       prompt = STRING_TOKEN (STR_MONO_DEVICE_ETH1_PROMPT),
       help   = STRING_TOKEN (STR_MONO_DEVICE_HELP),

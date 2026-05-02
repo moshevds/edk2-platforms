@@ -109,6 +109,22 @@ NormalizeWdtAcpiTable (
 }
 
 STATIC
+UINT8
+NormalizeSfp1Mode (
+  IN UINT8  Sfp1Mode
+  )
+{
+  if ((Sfp1Mode == MONO_SFP1_MODE_XFI_10G) ||
+      (Sfp1Mode == MONO_SFP1_MODE_1000BASEX_EXPERIMENT) ||
+      (Sfp1Mode == MONO_SFP1_MODE_100BASEX_EXPERIMENT))
+  {
+    return Sfp1Mode;
+  }
+
+  return MONO_SFP1_MODE_DEFAULT;
+}
+
+STATIC
 BOOLEAN
 GetMonoConfigVariableInfo (
   IN  CONST EFI_STRING  Request,
@@ -301,6 +317,8 @@ MonoConfigRouteConfig (
       NormalizeEmmcAcpiTable (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->EmmcAcpiTable);
     ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->WdtAcpiTable =
       NormalizeWdtAcpiTable (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->WdtAcpiTable);
+    ((MONO_ACPI_DEVICE_CONFIG *)Buffer)->Sfp1Mode =
+      NormalizeSfp1Mode (((MONO_ACPI_DEVICE_CONFIG *)Buffer)->Sfp1Mode);
   }
 
   return gRT->SetVariable (
@@ -350,6 +368,7 @@ SetDefaultDeviceConfig (
   Config->PcieRootBus   = MONO_PCIE_ROOT_BUS_DEFAULT;
   Config->EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
   Config->WdtAcpiTable  = MONO_WDT_ACPI_TABLE_DEFAULT;
+  Config->Sfp1Mode      = MONO_SFP1_MODE_DEFAULT;
 }
 
 STATIC
@@ -434,6 +453,7 @@ EnsureDeviceConfigVariable (
     Config.PcieRootBus = NormalizePcieRootBus (Config.PcieRootBus);
     Config.EmmcAcpiTable = NormalizeEmmcAcpiTable (Config.EmmcAcpiTable);
     Config.WdtAcpiTable = NormalizeWdtAcpiTable (Config.WdtAcpiTable);
+    Config.Sfp1Mode = NormalizeSfp1Mode (Config.Sfp1Mode);
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
                   &gMonoGatewayTokenSpaceGuid,
@@ -453,6 +473,7 @@ EnsureDeviceConfigVariable (
     Config.PcieRootBus = MONO_PCIE_ROOT_BUS_DEFAULT;
     Config.EmmcAcpiTable = MONO_EMMC_ACPI_TABLE_DEFAULT;
     Config.WdtAcpiTable = MONO_WDT_ACPI_TABLE_DEFAULT;
+    Config.Sfp1Mode = MONO_SFP1_MODE_DEFAULT;
     ZeroMem (Config.Reserved1, sizeof (Config.Reserved1));
     return gRT->SetVariable (
                   MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,

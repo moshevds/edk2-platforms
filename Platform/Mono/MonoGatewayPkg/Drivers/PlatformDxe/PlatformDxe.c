@@ -76,6 +76,13 @@ typedef struct {
 #define MONO_GATEWAY_RETIMER_ADDRESS           0x18
 #define MONO_GATEWAY_RETIMER_DEVICE_ID_REG     0x01
 #define MONO_GATEWAY_RETIMER_EXPECTED_ID       0xD0
+#define MONO_GATEWAY_RETIMER_CHANNEL_SELECT_REG 0xFF
+#define MONO_GATEWAY_RETIMER_SFP1_CHANNEL      1
+#define MONO_GATEWAY_RETIMER_CHANNEL_PAGE(Channel) (0x04U | (Channel))
+#define MONO_GATEWAY_RETIMER_PFD_OV_REG        0x09
+#define MONO_GATEWAY_RETIMER_PFD_OV_CDR_BYPASS BIT5
+#define MONO_GATEWAY_RETIMER_DATA_MUX_REG      0x1E
+#define MONO_GATEWAY_RETIMER_DATA_MUX_MASK     (BIT7 | BIT6 | BIT5)
 #define MONO_GATEWAY_CLOCKGEN_ADDRESS          0x69
 #define MONO_GATEWAY_CLOCKGEN_SLEW_RATE2_REG   0x04
 #define MONO_GATEWAY_CLOCKGEN_REV_VENDOR_REG   0x07
@@ -201,6 +208,22 @@ NormalizePcieRootBus (
 
 STATIC
 UINT8
+NormalizeSfp1Mode (
+  IN UINT8  Sfp1Mode
+  )
+{
+  if ((Sfp1Mode == MONO_SFP1_MODE_XFI_10G) ||
+      (Sfp1Mode == MONO_SFP1_MODE_1000BASEX_EXPERIMENT) ||
+      (Sfp1Mode == MONO_SFP1_MODE_100BASEX_EXPERIMENT))
+  {
+    return Sfp1Mode;
+  }
+
+  return MONO_SFP1_MODE_DEFAULT;
+}
+
+STATIC
+UINT8
 LoadPcieRootBusPolicy (
   VOID
   )
@@ -242,6 +265,51 @@ LoadPcieRootBusPolicy (
   }
 
   return NormalizePcieRootBus (Config.PcieRootBus);
+}
+
+STATIC
+UINT8
+LoadSfp1ModePolicy (
+  VOID
+  )
+{
+  MONO_ACPI_DEVICE_CONFIG  Config;
+  EFI_STATUS               Status;
+  UINTN                    DataSize;
+
+  ZeroMem (&Config, sizeof (Config));
+  DataSize = sizeof (Config);
+  Status   = gRT->GetVariable (
+                    MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                    &gMonoGatewayTokenSpaceGuid,
+                    NULL,
+                    &DataSize,
+                    &Config
+                    );
+  if (EFI_ERROR (Status)) {
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  if ((DataSize != sizeof (Config)) ||
+      ((Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION) &&
+       (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
+  {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO SFP1: ignoring invalid device config size=%u revision=%u for SFP1 mode\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  return NormalizeSfp1Mode (Config.Sfp1Mode);
 }
 
 STATIC
@@ -635,6 +703,103 @@ SelectMonoI2cMuxChannel (
 
 STATIC
 VOID
+ProgramMonoSfp1RetimerCdrBypass (
+  IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       DeviceId;
+  UINT8       PfdOv;
+  UINT8       DataMux;
+
+  if (LoadSfp1ModePolicy () == MONO_SFP1_MODE_XFI_10G) {
+    PLATFORM_INFO ("SFP1 retimer: keeping normal XFI mode");
+    return;
+  }
+
+  Status = I2cRegRead8 (
+             I2cMaster,
+             MONO_GATEWAY_RETIMER_ADDRESS,
+             MONO_GATEWAY_RETIMER_DEVICE_ID_REG,
+             &DeviceId
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: device-id read failed: %r", Status);
+    return;
+  }
+
+  if (DeviceId != MONO_GATEWAY_RETIMER_EXPECTED_ID) {
+    PLATFORM_WARN ("SFP1 retimer: unexpected device-id=0x%02x expected=0x%02x", DeviceId, MONO_GATEWAY_RETIMER_EXPECTED_ID);
+  }
+
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_RETIMER_ADDRESS,
+             MONO_GATEWAY_RETIMER_CHANNEL_SELECT_REG,
+             MONO_GATEWAY_RETIMER_CHANNEL_PAGE (MONO_GATEWAY_RETIMER_SFP1_CHANNEL)
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: channel select failed: %r", Status);
+    return;
+  }
+
+  Status = I2cRegRead8 (I2cMaster, MONO_GATEWAY_RETIMER_ADDRESS, MONO_GATEWAY_RETIMER_PFD_OV_REG, &PfdOv);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: PFD override read failed: %r", Status);
+    goto RestoreSharedPage;
+  }
+
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_RETIMER_ADDRESS,
+             MONO_GATEWAY_RETIMER_PFD_OV_REG,
+             (UINT8)(PfdOv | MONO_GATEWAY_RETIMER_PFD_OV_CDR_BYPASS)
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: PFD override write failed: %r", Status);
+    goto RestoreSharedPage;
+  }
+
+  Status = I2cRegRead8 (I2cMaster, MONO_GATEWAY_RETIMER_ADDRESS, MONO_GATEWAY_RETIMER_DATA_MUX_REG, &DataMux);
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: data mux read failed: %r", Status);
+    goto RestoreSharedPage;
+  }
+
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_RETIMER_ADDRESS,
+             MONO_GATEWAY_RETIMER_DATA_MUX_REG,
+             (UINT8)(DataMux & ~MONO_GATEWAY_RETIMER_DATA_MUX_MASK)
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: data mux write failed: %r", Status);
+    goto RestoreSharedPage;
+  }
+
+  PLATFORM_INFO (
+    "SFP1 retimer: channel=%u CDR bypass enabled pfd_ov 0x%02x->0x%02x data_mux 0x%02x->0x%02x",
+    MONO_GATEWAY_RETIMER_SFP1_CHANNEL,
+    PfdOv,
+    (UINT8)(PfdOv | MONO_GATEWAY_RETIMER_PFD_OV_CDR_BYPASS),
+    DataMux,
+    (UINT8)(DataMux & ~MONO_GATEWAY_RETIMER_DATA_MUX_MASK)
+    );
+
+RestoreSharedPage:
+  Status = I2cRegWrite8 (
+             I2cMaster,
+             MONO_GATEWAY_RETIMER_ADDRESS,
+             MONO_GATEWAY_RETIMER_CHANNEL_SELECT_REG,
+             0x00
+             );
+  if (EFI_ERROR (Status)) {
+    PLATFORM_WARN ("SFP1 retimer: failed to restore shared page: %r", Status);
+  }
+}
+
+STATIC
+VOID
 LogI2cReg8Probe (
   IN EFI_I2C_MASTER_PROTOCOL  *I2cMaster,
   IN CONST CHAR8              *Label,
@@ -829,6 +994,7 @@ RunMonoPcieSidebandDiagnostics (
           MONO_GATEWAY_RETIMER_DEVICE_ID_REG,
           MONO_GATEWAY_RETIMER_EXPECTED_ID
           );
+        ProgramMonoSfp1RetimerCdrBypass (I2cMaster);
         LogClockGeneratorStatus (I2cMaster);
       }
 

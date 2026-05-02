@@ -27,8 +27,11 @@
 #include <Library/UefiBootManagerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 
 #include <Pi/PiFirmwareFile.h>
+
+#include <MonoAcpiTableConfig.h>
 
 #include <Protocol/LoadedImage.h>
 #include <Protocol/MonoDtManager.h>
@@ -138,6 +141,12 @@ typedef struct {
   CONST CHAR8  *Path;
   UINT16       Offset;
 } MONO_DT_MAC_FIXUP;
+
+typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_DT_DEVICE_CONFIG_REVISION_1_DATA;
 
 typedef struct {
   CONST CHAR8  *Compatible;
@@ -342,6 +351,137 @@ MonoDtReadGatewayEeprom (
            Buffer,
            (UINT32)BufferSize
            );
+}
+
+STATIC
+UINT8
+PatchDtbNormalizeSfp1Mode (
+  IN UINT8  Sfp1Mode
+  )
+{
+  if ((Sfp1Mode == MONO_SFP1_MODE_XFI_10G) ||
+      (Sfp1Mode == MONO_SFP1_MODE_1000BASEX_EXPERIMENT) ||
+      (Sfp1Mode == MONO_SFP1_MODE_100BASEX_EXPERIMENT))
+  {
+    return Sfp1Mode;
+  }
+
+  return MONO_SFP1_MODE_DEFAULT;
+}
+
+STATIC
+UINT8
+PatchDtbLoadSfp1ModePolicy (
+  VOID
+  )
+{
+  MONO_ACPI_DEVICE_CONFIG  Config;
+  EFI_STATUS               Status;
+  UINTN                    DataSize;
+
+  ZeroMem (&Config, sizeof (Config));
+  DataSize = sizeof (Config);
+  Status   = gRT->GetVariable (
+                    MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                    &gMonoGatewayTokenSpaceGuid,
+                    NULL,
+                    &DataSize,
+                    &Config
+                    );
+  if (EFI_ERROR (Status)) {
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  if ((DataSize == sizeof (MONO_DT_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_DT_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  if ((DataSize != sizeof (Config)) ||
+      ((Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION) &&
+       (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
+  {
+    DEBUG ((
+      DEBUG_WARN,
+      "MonoDtManagerDxe: ignoring invalid device config size=%u revision=%u for SFP1 mode\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return MONO_SFP1_MODE_DEFAULT;
+  }
+
+  return PatchDtbNormalizeSfp1Mode (Config.Sfp1Mode);
+}
+
+STATIC
+VOID
+PatchDtbSfp1Mode (
+  IN OUT VOID  *Dtb
+  )
+{
+  INT32       Node;
+  INT32       FdtStatus;
+  UINT8       Sfp1Mode;
+  CONST CHAR8 *PhyMode;
+  UINT32      LinkSpeed;
+  UINT32      FixedLink[5];
+
+  Sfp1Mode = PatchDtbLoadSfp1ModePolicy ();
+  if (Sfp1Mode == MONO_SFP1_MODE_XFI_10G) {
+    DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: keeping SFP1 DT in normal XFI mode\n"));
+    return;
+  }
+
+  if (Sfp1Mode == MONO_SFP1_MODE_100BASEX_EXPERIMENT) {
+    PhyMode   = "100base-x";
+    LinkSpeed = 100;
+  } else {
+    PhyMode   = "1000base-x";
+    LinkSpeed = 1000;
+  }
+
+  Node = FdtPathOffset (Dtb, "/soc/fman@1a00000/ethernet@f2000");
+  if (Node < 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: SFP1 MAC10 node not found for Base-X experiment\n"));
+    return;
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, "phy-connection-type", PhyMode, AsciiStrSize (PhyMode));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set SFP1 phy-connection-type: %a\n", FdtStrerror (FdtStatus)));
+  }
+
+  FdtStatus = FdtSetProp (Dtb, Node, "phy-mode", PhyMode, AsciiStrSize (PhyMode));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set SFP1 phy-mode: %a\n", FdtStrerror (FdtStatus)));
+  }
+
+  //
+  // The OpenWRT/NXP DPAA stack on this board uses the legacy fsl_mac/fsl_dpa
+  // path. For that stack, managed = "in-band-status" is treated as a fixed PHY
+  // with no speed, which causes repeated swphy warnings. Use the static
+  // fixed-link form the existing SDK DT uses, but at the selected experiment
+  // speed.
+  //
+  PatchDtbDeletePropFromNodeIfPresent (Dtb, Node, "managed");
+
+  FixedLink[0] = CpuToFdt32 (0);
+  FixedLink[1] = CpuToFdt32 (1);
+  FixedLink[2] = CpuToFdt32 (LinkSpeed);
+  FixedLink[3] = CpuToFdt32 (0);
+  FixedLink[4] = CpuToFdt32 (0);
+
+  FdtStatus = FdtSetProp (Dtb, Node, "fixed-link", FixedLink, sizeof (FixedLink));
+  if (FdtStatus != 0) {
+    DEBUG ((DEBUG_WARN, "MonoDtManagerDxe: failed to set SFP1 fixed-link: %a\n", FdtStrerror (FdtStatus)));
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MonoDtManagerDxe: SFP1 MAC10 patched for static %a fixed-link experiment\n",
+    PhyMode
+    ));
 }
 
 STATIC
@@ -1533,6 +1673,7 @@ InstallEmbeddedDtb (
     PatchDtbQbmanReservedMemory ((VOID *)(UINTN)RuntimeBase);
     PatchDtbFmanFirmware ((VOID *)(UINTN)RuntimeBase);
     PatchDtbMacAddressesFromEeprom ((VOID *)(UINTN)RuntimeBase);
+    PatchDtbSfp1Mode ((VOID *)(UINTN)RuntimeBase);
     PatchDtbCaam ((VOID *)(UINTN)RuntimeBase);
   } else {
     DEBUG ((DEBUG_INFO, "MonoDtManagerDxe: installing original DTB without dynamic fixups\n"));

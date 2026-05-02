@@ -26,6 +26,9 @@
 #define MONO_PCIE_ROOT_BUS_ROOT_PORT      0
 #define MONO_PCIE_ROOT_BUS_DOWNSTREAM     1
 #define MONO_PCIE_ROOT_BUS_ROOT_PORT_NVME_QUIESCE 2
+#define MONO_SFP1_MODE_XFI_10G            0
+#define MONO_SFP1_MODE_1000BASEX_EXPERIMENT 1
+#define MONO_SFP1_MODE_100BASEX_EXPERIMENT 2
 
 typedef struct {
   UINT32    Revision;
@@ -73,7 +76,8 @@ typedef struct {
   UINT8     PcieRootBus;
   UINT8     EmmcAcpiTable;
   UINT8     WdtAcpiTable;
-  UINT8     Reserved3[5];
+  UINT8     Sfp1Mode;
+  UINT8     Reserved3[4];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif

@@ -87,6 +87,11 @@ typedef struct {
 #define MONO_WDT_ACPI_TABLE_NXP                1U
 #define MONO_WDT_ACPI_TABLE_DEFAULT            MONO_WDT_ACPI_TABLE_WDAT
 
+#define MONO_SFP1_MODE_XFI_10G                 0U
+#define MONO_SFP1_MODE_1000BASEX_EXPERIMENT    1U
+#define MONO_SFP1_MODE_100BASEX_EXPERIMENT     2U
+#define MONO_SFP1_MODE_DEFAULT                 MONO_SFP1_MODE_XFI_10G
+
 typedef enum {
   //
   // Core user-visible devices
@@ -171,7 +176,8 @@ typedef struct {
   UINT8     PcieRootBus;
   UINT8     EmmcAcpiTable;
   UINT8     WdtAcpiTable;
-  UINT8     Reserved1[5];
+  UINT8     Sfp1Mode;
+  UINT8     Reserved1[4];
 } MONO_ACPI_DEVICE_CONFIG;
 
 #endif
