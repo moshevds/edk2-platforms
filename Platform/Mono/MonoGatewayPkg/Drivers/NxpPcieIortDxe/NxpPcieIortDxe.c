@@ -42,6 +42,7 @@
 #define DW_PCIE_PORT_DEBUG1          0x72C
 #define DW_PCIE_PORT_DEBUG1_LINK_UP  BIT4
 #define DW_PCIE_PORT_DEBUG1_LINK_IN_TRAINING BIT29
+#define PCI_CAPABILITY_ID_MSIX       0x11
 
 #define NXP_PCIE_FDT_COMPATIBLE      "fsl,ls1046a-pcie"
 #define NXP_PCIE_FDT_COMPATIBLE_LEGACY "fsl,ls-pcie"
@@ -55,6 +56,9 @@
 #define MONO_USB0_DMA_ADDR_BITS      LS1046A_ADDRESS_SIZE_LIMIT
 #define MONO_ESDHC_DMA_ADDR_BITS     32
 #define MONO_NVME_SHUTDOWN_WAIT_US   1000
+#define MONO_NVME_CC_EN              BIT0
+#define MONO_NVME_CC_SHN_MASK        (BIT14 | BIT15)
+#define MONO_NVME_CSTS_RDY           BIT0
 
 STATIC EFI_EVENT  mReadyToBootEvent;
 STATIC EFI_EVENT  mExitBootServicesEvent;
@@ -277,6 +281,374 @@ DisableNvmeBusMaster (
 
 STATIC
 EFI_STATUS
+FindPciCapability (
+  IN  EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN  UINT8                CapabilityId,
+  OUT UINT8                *CapabilityOffset
+  );
+
+STATIC
+EFI_STATUS
+ReadNvmeMmio32 (
+  IN  EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN  UINT64               Offset,
+  OUT UINT32               *Value
+  )
+{
+  if ((PciIo == NULL) || (Value == NULL)) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  return PciIo->Mem.Read (
+                      PciIo,
+                      EfiPciIoWidthUint32,
+                      0,
+                      Offset,
+                      1,
+                      Value
+                      );
+}
+
+STATIC
+EFI_STATUS
+ReadNvmeMmio64 (
+  IN  EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN  UINT64               Offset,
+  OUT UINT64               *Value
+  )
+{
+  if ((PciIo == NULL) || (Value == NULL)) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  return PciIo->Mem.Read (
+                      PciIo,
+                      EfiPciIoWidthUint32,
+                      0,
+                      Offset,
+                      2,
+                      Value
+                      );
+}
+
+STATIC
+UINT32
+ReadNvmeMmio32OrPoison (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT64               Offset
+  )
+{
+  EFI_STATUS  Status;
+  UINT32      Value;
+
+  Value  = MAX_UINT32;
+  Status = ReadNvmeMmio32 (PciIo, Offset, &Value);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO NVMe DBG: MMIO32 offset=0x%Lx read failed: %r\n", Offset, Status));
+  }
+
+  return Value;
+}
+
+STATIC
+UINT64
+ReadNvmeMmio64OrPoison (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT64               Offset
+  )
+{
+  EFI_STATUS  Status;
+  UINT64      Value;
+
+  Value  = MAX_UINT64;
+  Status = ReadNvmeMmio64 (PciIo, Offset, &Value);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO NVMe DBG: MMIO64 offset=0x%Lx read failed: %r\n", Offset, Status));
+  }
+
+  return Value;
+}
+
+STATIC
+UINT16
+ReadPci16OrPoison (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT32               Offset
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      Value;
+
+  Value  = MAX_UINT16;
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint16,
+                        Offset,
+                        1,
+                        &Value
+                        );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO PCI DBG: cfg16 offset=0x%x read failed: %r\n", Offset, Status));
+  }
+
+  return Value;
+}
+
+STATIC
+UINT32
+ReadPci32OrPoison (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT32               Offset
+  )
+{
+  EFI_STATUS  Status;
+  UINT32      Value;
+
+  Value  = MAX_UINT32;
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint32,
+                        Offset,
+                        1,
+                        &Value
+                        );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "MONO PCI DBG: cfg32 offset=0x%x read failed: %r\n", Offset, Status));
+  }
+
+  return Value;
+}
+
+STATIC
+VOID
+DumpPciCapability16 (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN CONST CHAR8          *Phase,
+  IN UINT8                CapabilityId,
+  IN CONST CHAR8          *Name
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       CapabilityOffset;
+  UINT16      Control;
+
+  Status = FindPciCapability (PciIo, CapabilityId, &CapabilityOffset);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((
+      DEBUG_INFO,
+      "MONO NVMe DBG [%a]: %a capability absent status=%r\n",
+      Phase,
+      Name,
+      Status
+      ));
+    return;
+  }
+
+  Control = ReadPci16OrPoison (PciIo, CapabilityOffset + 2);
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe DBG [%a]: %a cap=0x%02x ctrl=0x%04x\n",
+    Phase,
+    Name,
+    CapabilityOffset,
+    Control
+    ));
+}
+
+STATIC
+VOID
+DumpNvmePciAndControllerState (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN CONST CHAR8          *Phase
+  )
+{
+  EFI_STATUS  Status;
+  UINT8       PcieCapabilityOffset;
+  UINT16      Command;
+  UINT16      PciStatus;
+  UINT16      DeviceControl;
+  UINT16      DeviceStatus;
+  UINT16      LinkControl;
+  UINT16      LinkStatus;
+  UINT32      Bar0;
+  UINT32      Bar1;
+  UINT64      Cap;
+  UINT32      Version;
+  UINT32      Intms;
+  UINT32      Intmc;
+  UINT32      Cc;
+  UINT32      Csts;
+  UINT32      Aqa;
+  UINT64      Asq;
+  UINT64      Acq;
+  UINT32      Sq0;
+  UINT32      Cq0;
+
+  if (PciIo == NULL) {
+    return;
+  }
+
+  Command   = ReadPci16OrPoison (PciIo, PCI_COMMAND_OFFSET);
+  PciStatus = ReadPci16OrPoison (PciIo, PCI_PRIMARY_STATUS_OFFSET);
+  Bar0      = ReadPci32OrPoison (PciIo, PCI_BASE_ADDRESSREG_OFFSET);
+  Bar1      = ReadPci32OrPoison (PciIo, PCI_BASE_ADDRESSREG_OFFSET + sizeof (UINT32));
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe DBG [%a]: pci command=0x%04x status=0x%04x bar0=0x%08x bar1=0x%08x\n",
+    Phase,
+    Command,
+    PciStatus,
+    Bar0,
+    Bar1
+    ));
+
+  DumpPciCapability16 (PciIo, Phase, EFI_PCI_CAPABILITY_ID_MSI, "MSI");
+  DumpPciCapability16 (PciIo, Phase, PCI_CAPABILITY_ID_MSIX, "MSI-X");
+
+  Status = FindPciCapability (
+             PciIo,
+             PCI_EXPRESS_CAPABILITY_ID,
+             &PcieCapabilityOffset
+             );
+  if (!EFI_ERROR (Status)) {
+    DeviceControl = ReadPci16OrPoison (
+                      PciIo,
+                      PcieCapabilityOffset + OFFSET_OF (PCI_CAPABILITY_PCIEXP, DeviceControl)
+                      );
+    DeviceStatus = ReadPci16OrPoison (
+                     PciIo,
+                     PcieCapabilityOffset + OFFSET_OF (PCI_CAPABILITY_PCIEXP, DeviceStatus)
+                     );
+    LinkControl = ReadPci16OrPoison (
+                    PciIo,
+                    PcieCapabilityOffset + OFFSET_OF (PCI_CAPABILITY_PCIEXP, LinkControl)
+                    );
+    LinkStatus = ReadPci16OrPoison (
+                   PciIo,
+                   PcieCapabilityOffset + OFFSET_OF (PCI_CAPABILITY_PCIEXP, LinkStatus)
+                   );
+    DEBUG ((
+      DEBUG_INFO,
+      "MONO NVMe DBG [%a]: PCIe cap=0x%02x devctl=0x%04x devsts=0x%04x lnkctl=0x%04x lnksts=0x%04x\n",
+      Phase,
+      PcieCapabilityOffset,
+      DeviceControl,
+      DeviceStatus,
+      LinkControl,
+      LinkStatus
+      ));
+  } else {
+    DEBUG ((DEBUG_INFO, "MONO NVMe DBG [%a]: PCIe capability absent status=%r\n", Phase, Status));
+  }
+
+  Cap     = ReadNvmeMmio64OrPoison (PciIo, NVME_CAP_OFFSET);
+  Version = ReadNvmeMmio32OrPoison (PciIo, NVME_VER_OFFSET);
+  Intms   = ReadNvmeMmio32OrPoison (PciIo, NVME_INTMS_OFFSET);
+  Intmc   = ReadNvmeMmio32OrPoison (PciIo, NVME_INTMC_OFFSET);
+  Cc      = ReadNvmeMmio32OrPoison (PciIo, NVME_CC_OFFSET);
+  Csts    = ReadNvmeMmio32OrPoison (PciIo, NVME_CSTS_OFFSET);
+  Aqa     = ReadNvmeMmio32OrPoison (PciIo, NVME_AQA_OFFSET);
+  Asq     = ReadNvmeMmio64OrPoison (PciIo, NVME_ASQ_OFFSET);
+  Acq     = ReadNvmeMmio64OrPoison (PciIo, NVME_ACQ_OFFSET);
+  Sq0     = ReadNvmeMmio32OrPoison (PciIo, NVME_SQ0_OFFSET);
+  Cq0     = ReadNvmeMmio32OrPoison (PciIo, NVME_CQ0_OFFSET);
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe DBG [%a]: cap=0x%016Lx ver=0x%08x intms=0x%08x intmc=0x%08x\n",
+    Phase,
+    Cap,
+    Version,
+    Intms,
+    Intmc
+    ));
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe DBG [%a]: cc=0x%08x csts=0x%08x aqa=0x%08x asq=0x%016Lx acq=0x%016Lx sq0=0x%08x cq0=0x%08x\n",
+    Phase,
+    Cc,
+    Csts,
+    Aqa,
+    Asq,
+    Acq,
+    Sq0,
+    Cq0
+    ));
+}
+
+STATIC
+EFI_STATUS
+FindPciCapability (
+  IN  EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN  UINT8                CapabilityId,
+  OUT UINT8                *CapabilityOffset
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      PciStatus;
+  UINT16      CapabilityEntry;
+  UINT8       Offset;
+
+  if ((PciIo == NULL) || (CapabilityOffset == NULL)) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint16,
+                        PCI_PRIMARY_STATUS_OFFSET,
+                        1,
+                        &PciStatus
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  if ((PciStatus & EFI_PCI_STATUS_CAPABILITY) == 0) {
+    return EFI_UNSUPPORTED;
+  }
+
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint8,
+                        PCI_CAPBILITY_POINTER_OFFSET,
+                        1,
+                        &Offset
+                        );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  while ((Offset >= 0x40) && ((Offset & 0x03) == 0)) {
+    Status = PciIo->Pci.Read (
+                          PciIo,
+                          EfiPciIoWidthUint16,
+                          Offset,
+                          1,
+                          &CapabilityEntry
+                          );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    if ((UINT8)CapabilityEntry == CapabilityId) {
+      *CapabilityOffset = Offset;
+      return EFI_SUCCESS;
+    }
+
+    if (Offset == (UINT8)(CapabilityEntry >> 8)) {
+      break;
+    }
+
+    Offset = (UINT8)(CapabilityEntry >> 8);
+  }
+
+  return EFI_NOT_FOUND;
+}
+
+STATIC
+EFI_STATUS
 QuiesceNvmeController (
   IN EFI_PCI_IO_PROTOCOL  *PciIo
   )
@@ -288,6 +660,7 @@ QuiesceNvmeController (
   UINT32      Index;
   UINT32      Timeout;
   UINT32      InterruptMask;
+  BOOLEAN     ControllerEnabled;
 
   InterruptMask = MAX_UINT32;
   (VOID)PciIo->Mem.Write (
@@ -323,11 +696,26 @@ QuiesceNvmeController (
     return Status;
   }
 
-  if ((Cc & BIT0) == 0) {
+  ControllerEnabled = (BOOLEAN)((Cc & MONO_NVME_CC_EN) != 0);
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe: quiesce start cc=0x%08x controller-enabled=%u shutdown-notify=0\n",
+    Cc,
+    ControllerEnabled ? 1 : 0
+    ));
+
+  if (!ControllerEnabled) {
+    DEBUG ((DEBUG_INFO, "MONO NVMe: controller was already disabled\n"));
     return DisableNvmeBusMaster (PciIo);
   }
 
-  Cc &= ~BIT0;
+  //
+  // Match Linux's probe-time handoff behavior for an already-enabled
+  // controller: clear EN without setting SHN, because SHN may generate
+  // completions to firmware-owned admin queue memory.
+  //
+  Cc &= ~(MONO_NVME_CC_EN | MONO_NVME_CC_SHN_MASK);
+  DEBUG ((DEBUG_INFO, "MONO NVMe: clearing EN without shutdown notification cc=0x%08x\n", Cc));
   Status = PciIo->Mem.Write (
                         PciIo,
                         EfiPciIoWidthUint32,
@@ -360,11 +748,13 @@ QuiesceNvmeController (
       return Status;
     }
 
-    if ((Csts & BIT0) == 0) {
+    if ((Csts & MONO_NVME_CSTS_RDY) == 0) {
+      DEBUG ((DEBUG_INFO, "MONO NVMe: controller ready cleared csts=0x%08x\n", Csts));
       return DisableNvmeBusMaster (PciIo);
     }
   }
 
+  DEBUG ((DEBUG_WARN, "MONO NVMe: timed out waiting for controller ready to clear\n"));
   return EFI_TIMEOUT;
 }
 
@@ -420,7 +810,10 @@ QuiesceNvmeOnExitBootServices (
     Segment = Bus = Device = Function = 0;
     (VOID)ReadPciLocation (PciIo, &Segment, &Bus, &Device, &Function);
 
+    DumpNvmePciAndControllerState (PciIo, "before-quiesce");
     QuiesceStatus = QuiesceNvmeController (PciIo);
+    DumpNvmePciAndControllerState (PciIo, "after-quiesce");
+
     DEBUG ((
       EFI_ERROR (QuiesceStatus) ? DEBUG_WARN : DEBUG_INFO,
       "MONO NVMe: ExitBootServices quiesce %04x:%02x:%02x.%x status=%r\n",

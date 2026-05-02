@@ -170,9 +170,11 @@ ReserveMemoryRegion (
         );
       }
 
+      // Keep the carved range memory-like so EFI consumers reconstruct it as
+      // reserved/NOMAP RAM instead of dropping it as non-memory.
       BuildResourceDescriptorHob (
         EFI_RESOURCE_MEMORY_RESERVED,
-        0,
+        ResourceAttributes,
         ReservedRegionBase,
         ReservedRegionSize
       );

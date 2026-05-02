@@ -116,6 +116,7 @@ READ_LOCK_STATUS   = TRUE
   INF Platform/Mono/MonoGatewayPkg/Drivers/MonoDtManagerDxe/MonoDtManagerDxe.inf
   INF Platform/Mono/MonoGatewayPkg/Drivers/MonoAcpiManagerDxe/MonoAcpiManagerDxe.inf
   INF Platform/Mono/MonoGatewayPkg/Drivers/MonoConfigDxe/MonoConfigDxe.inf
+  INF Platform/Mono/MonoGatewayPkg/Drivers/MonoQbmanCaamHandoffDxe/MonoQbmanCaamHandoffDxe.inf
 
   #
   # Multiple Console IO support

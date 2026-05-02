@@ -1,0 +1,33 @@
+## @file
+#  Mono Gateway QMan/CAAM OS handoff driver.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION    = 0x00010019
+  BASE_NAME      = MonoQbmanCaamHandoffDxe
+  FILE_GUID      = 20fa4086-66d0-4497-a5fe-15b47cf128fc
+  MODULE_TYPE    = DXE_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = MonoQbmanCaamHandoffDxeEntryPoint
+
+[Sources]
+  MonoQbmanCaamHandoffDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+  Silicon/NXP/NxpQoriqLs.dec
+
+[Guids]
+  gEfiEventExitBootServicesGuid
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  IoLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+
+[Depex]
+  TRUE
