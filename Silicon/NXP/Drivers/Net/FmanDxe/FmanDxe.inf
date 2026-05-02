@@ -56,6 +56,7 @@
   gEfiSimpleNetworkProtocolGuid
 
 [Guids]
+  gEfiEventExitBootServicesGuid           ## CONSUMES
   gMonoNetConfigGuid                    ## CONSUMES
   gNxpNonDiscoverableI2cMasterGuid       ## CONSUMES
   gNxpNonDiscoverableFmanNetGuid         ## TO_START

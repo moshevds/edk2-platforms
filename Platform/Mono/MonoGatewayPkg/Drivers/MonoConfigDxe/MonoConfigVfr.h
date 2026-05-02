@@ -23,6 +23,9 @@
 #define MONO_EMMC_ACPI_TABLE_GENERIC_SDHCI 2
 #define MONO_WDT_ACPI_TABLE_WDAT          0
 #define MONO_WDT_ACPI_TABLE_NXP           1
+#define MONO_PCIE_ROOT_BUS_ROOT_PORT      0
+#define MONO_PCIE_ROOT_BUS_DOWNSTREAM     1
+#define MONO_PCIE_ROOT_BUS_ROOT_PORT_NVME_QUIESCE 2
 
 typedef struct {
   UINT32    Revision;

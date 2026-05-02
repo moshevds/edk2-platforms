@@ -13,6 +13,8 @@
 
 #include <Pi/PiFirmwareFile.h>
 
+#include <Guid/EventGroup.h>
+
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -344,6 +346,7 @@ typedef struct {
   EFI_SIMPLE_NETWORK_MODE        Mode;
   EFI_NETWORK_STATISTICS         Stats;
   FMAN_DEVICE_PATH               *DevicePath;
+  LIST_ENTRY                     HandoffLink;
   UINTN                          MemacBase;
   UINTN                          MdioBase;
   UINTN                          PhyMdioBase;
@@ -366,6 +369,7 @@ typedef struct {
   UINTN                          CurrentTxIndex;
   VOID                           *TxCompletedBuffer;
   BOOLEAN                        HardwareStarted;
+  BOOLEAN                        HandoffLinkActive;
   BOOLEAN                        CommonContextHeld;
   EFI_I2C_MASTER_PROTOCOL        *SfpI2cMaster;
   BOOLEAN                        SfpModulePresent;

@@ -31,6 +31,7 @@
   PcdLib
   SocLib
   UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
   UefiLib
   UefiDriverEntryPoint
 
@@ -45,6 +46,7 @@
   gEfiEventExitBootServicesGuid
   gEfiEventReadyToBootGuid
   gFdtTableGuid
+  gMonoGatewayTokenSpaceGuid
 
 [FixedPcd]
   gNxpQoriqLsTokenSpaceGuid.PcdPcieTbuMask

@@ -190,8 +190,10 @@ NormalizePcieRootBus (
   IN UINT8  PcieRootBus
   )
 {
-  if (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) {
-    return MONO_PCIE_ROOT_BUS_ROOT_PORT;
+  if ((PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) ||
+      (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT_NVME_QUIESCE))
+  {
+    return PcieRootBus;
   }
 
   return MONO_PCIE_ROOT_BUS_DOWNSTREAM;

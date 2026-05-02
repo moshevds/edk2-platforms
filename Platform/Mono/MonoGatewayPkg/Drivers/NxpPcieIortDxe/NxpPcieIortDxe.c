@@ -18,7 +18,9 @@
 #include <Library/PcdLib.h>
 #include <Library/SerDes.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/UefiLib.h>
+#include <MonoAcpiTableConfig.h>
 #include <Platform.h>
 #include <Protocol/AcpiTable.h>
 #include <Protocol/MonoDtManager.h>
@@ -66,6 +68,12 @@ STATIC BOOLEAN    mIortInstalled;
 STATIC BOOLEAN    mFdtPcieMapsPatched;
 
 typedef struct {
+  UINT32    Revision;
+  UINT32    Reserved;
+  UINT64    EnabledMask;
+} MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA;
+
+typedef struct {
   UINT16    Segment;
   UINT32    MappingCount;
 } PCIE_SEGMENT_MAPPING_INFO;
@@ -95,6 +103,92 @@ IsValidFdtInstalled (
   }
 
   return (BOOLEAN)(FdtCheckHeader (Dtb) == 0);
+}
+
+STATIC
+UINT8
+NormalizePcieRootBus (
+  IN UINT8  PcieRootBus
+  )
+{
+  if ((PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT) ||
+      (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT_NVME_QUIESCE))
+  {
+    return PcieRootBus;
+  }
+
+  return MONO_PCIE_ROOT_BUS_DOWNSTREAM;
+}
+
+STATIC
+UINT8
+LoadPcieRootBusPolicy (
+  VOID
+  )
+{
+  MONO_ACPI_DEVICE_CONFIG  Config;
+  EFI_STATUS               Status;
+  UINTN                    DataSize;
+
+  ZeroMem (&Config, sizeof (Config));
+  DataSize = sizeof (Config);
+  Status   = gRT->GetVariable (
+                    MONO_ACPI_DEVICE_CONFIG_VARIABLE_NAME,
+                    &gMonoGatewayTokenSpaceGuid,
+                    NULL,
+                    &DataSize,
+                    &Config
+                    );
+  if (EFI_ERROR (Status)) {
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  if ((DataSize == sizeof (MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA)) &&
+      (((MONO_ACPI_DEVICE_CONFIG_REVISION_1_DATA *)&Config)->Revision == MONO_ACPI_DEVICE_CONFIG_REVISION_1))
+  {
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  if ((DataSize != sizeof (Config)) ||
+      ((Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION) &&
+       (Config.Revision != MONO_ACPI_DEVICE_CONFIG_REVISION_2)))
+  {
+    DEBUG ((
+      DEBUG_WARN,
+      "MONO NVMe: ignoring invalid device config size=%u revision=%u for quiesce policy\n",
+      (UINT32)DataSize,
+      Config.Revision
+      ));
+    return MONO_PCIE_ROOT_BUS_DEFAULT;
+  }
+
+  return NormalizePcieRootBus (Config.PcieRootBus);
+}
+
+STATIC
+BOOLEAN
+ShouldQuiesceNvmeOnExitBootServices (
+  VOID
+  )
+{
+  UINT8  PcieRootBus;
+
+  if (IsValidFdtInstalled ()) {
+    return TRUE;
+  }
+
+  PcieRootBus = LoadPcieRootBusPolicy ();
+  if (PcieRootBus == MONO_PCIE_ROOT_BUS_ROOT_PORT_NVME_QUIESCE) {
+    DEBUG ((DEBUG_INFO, "MONO NVMe: ACPI root-port bus 0 quiesce option enabled\n"));
+    return TRUE;
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "MONO NVMe: no DTB installed and ACPI root-bus policy=%u; skipping ExitBootServices quiesce\n",
+    PcieRootBus
+    ));
+  return FALSE;
 }
 
 STATIC
@@ -780,8 +874,7 @@ QuiesceNvmeOnExitBootServices (
   (VOID)Event;
   (VOID)Context;
 
-  if (!IsValidFdtInstalled ()) {
-    DEBUG ((DEBUG_INFO, "MONO NVMe: no DTB installed; skipping ExitBootServices quiesce\n"));
+  if (!ShouldQuiesceNvmeOnExitBootServices ()) {
     return;
   }
 

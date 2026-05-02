@@ -48,6 +48,85 @@ STATIC FMAN_DEVICE_PATH mFmanDevicePathTemplate = {
   }
 };
 
+STATIC LIST_ENTRY  mFmanHandoffList = INITIALIZE_LIST_HEAD_VARIABLE (mFmanHandoffList);
+STATIC EFI_EVENT   mFmanExitBootServicesEvent;
+
+STATIC
+VOID
+EFIAPI
+FmanExitBootServices (
+  IN EFI_EVENT  Event,
+  IN VOID       *Context
+  )
+{
+  LIST_ENTRY         *Link;
+  FMAN_PRIVATE_DATA  *Private;
+  EFI_STATUS         Status;
+  UINTN              ShutdownCount;
+  UINTN              SkipCount;
+
+  ShutdownCount = 0;
+  SkipCount = 0;
+
+  for (Link = GetFirstNode (&mFmanHandoffList);
+       !IsNull (&mFmanHandoffList, Link);
+       Link = GetNextNode (&mFmanHandoffList, Link))
+  {
+    Private = BASE_CR (Link, FMAN_PRIVATE_DATA, HandoffLink);
+    if ((Private == NULL) || !Private->HandoffLinkActive) {
+      continue;
+    }
+
+    if (Private->Is10G) {
+      SkipCount++;
+      DEBUG ((
+        DEBUG_ERROR,
+        "FmanDxe: ExitBootServices leaving 10G port %u active\n",
+        Private->PortId
+        ));
+      continue;
+    }
+
+    if (!Private->HardwareStarted) {
+      DEBUG ((
+        DEBUG_INFO,
+        "FmanDxe: ExitBootServices 1G port %u was not hardware-started\n",
+        Private->PortId
+        ));
+      continue;
+    }
+
+    DEBUG ((
+      DEBUG_ERROR,
+      "FmanDxe: ExitBootServices shutting down 1G port %u memac=0x%Lx rx=0x%Lx tx=0x%Lx\n",
+      Private->PortId,
+      (UINT64)Private->MemacBase,
+      (UINT64)Private->RxPortBase,
+      (UINT64)Private->TxPortBase
+      ));
+
+    Status = FmanHwShutdown (Private);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_ERROR,
+        "FmanDxe: ExitBootServices 1G port %u shutdown failed: %r\n",
+        Private->PortId,
+        Status
+        ));
+      continue;
+    }
+
+    ShutdownCount++;
+  }
+
+  DEBUG ((
+    DEBUG_ERROR,
+    "FmanDxe: ExitBootServices handoff complete, shut down %Lu 1G ports, skipped %Lu 10G ports\n",
+    (UINT64)ShutdownCount,
+    (UINT64)SkipCount
+    ));
+}
+
 STATIC
 VOID
 EFIAPI
@@ -711,6 +790,9 @@ FmanDriverBindingStart (
     goto FreeDevicePath;
   }
 
+  InsertTailList (&mFmanHandoffList, &Private->HandoffLink);
+  Private->HandoffLinkActive = TRUE;
+
   return EFI_SUCCESS;
 
 FreeDevicePath:
@@ -758,6 +840,11 @@ FmanDriverBindingStop (
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "FmanDxe: stop refused, hardware shutdown failed: %r\n", Status));
     return Status;
+  }
+
+  if (Private->HandoffLinkActive) {
+    RemoveEntryList (&Private->HandoffLink);
+    Private->HandoffLinkActive = FALSE;
   }
 
   Status = gBS->UninstallMultipleProtocolInterfaces (
@@ -831,6 +918,20 @@ FmanEntryPoint (
     DEBUG ((DEBUG_ERROR, "FmanDxe: failed to create ReadyToBoot event: %r\n", Status));
   } else {
     DEBUG ((DEBUG_ERROR, "FmanDxe: ReadyToBoot event created\n"));
+  }
+
+  Status = gBS->CreateEventEx (
+                  EVT_NOTIFY_SIGNAL,
+                  TPL_CALLBACK,
+                  FmanExitBootServices,
+                  NULL,
+                  &gEfiEventExitBootServicesGuid,
+                  &mFmanExitBootServicesEvent
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: failed to create ExitBootServices event: %r\n", Status));
+  } else {
+    DEBUG ((DEBUG_ERROR, "FmanDxe: ExitBootServices event created\n"));
   }
 
   return EFI_SUCCESS;
