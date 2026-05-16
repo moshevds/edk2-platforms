@@ -226,6 +226,7 @@ SnpReceiveFilters (
 {
   FMAN_PRIVATE_DATA  *Private;
   EFI_STATUS         Status;
+  UINT32             PreviousReceiveFilterSetting;
 
   Private = FMAN_PRIVATE_FROM_SNP (This);
   Status = FmanSnpCheckOperational (Private);
@@ -263,6 +264,11 @@ SnpReceiveFilters (
       return EFI_INVALID_PARAMETER;
     }
 
+    Status = FmanHwApplyReceiveFilters (Private);
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+
     DEBUG ((DEBUG_INFO, "FmanDxe: ReceiveFilters reset current=0x%08x\n", Private->Mode.ReceiveFilterSetting));
     return EFI_SUCCESS;
   }
@@ -272,8 +278,16 @@ SnpReceiveFilters (
     return EFI_INVALID_PARAMETER;
   }
 
+  PreviousReceiveFilterSetting = Private->Mode.ReceiveFilterSetting;
   Private->Mode.ReceiveFilterSetting |= Enable;
   Private->Mode.ReceiveFilterSetting &= ~Disable;
+  Status = FmanHwApplyReceiveFilters (Private);
+  if (EFI_ERROR (Status)) {
+    Private->Mode.ReceiveFilterSetting = PreviousReceiveFilterSetting;
+    (VOID)FmanHwApplyReceiveFilters (Private);
+    return Status;
+  }
+
   DEBUG ((DEBUG_INFO, "FmanDxe: ReceiveFilters set current=0x%08x\n", Private->Mode.ReceiveFilterSetting));
   return EFI_SUCCESS;
 }

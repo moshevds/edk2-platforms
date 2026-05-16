@@ -16,8 +16,8 @@ STATIC UINTN     mFmanCommonBase;
 STATIC UINTN     mFmanCommonUsers;
 STATIC UINTN     mFmanMuramAlloc;
 STATIC UINTN     mFmanMuramTop;
-STATIC BOOLEAN   mFmanMdioConfigured;
-STATIC UINTN     mFmanMdioBase;
+STATIC BOOLEAN   mFmanExternalMdioConfigured;
+STATIC UINTN     mFmanExternalMdioBase;
 STATIC BOOLEAN   mMonoSfpMuxResetDone;
 
 #define FMAN_ERROR(_Fmt, ...) \
@@ -761,21 +761,27 @@ FmanMdioWait (
 STATIC
 VOID
 FmanConfigureMdioBase (
+  IN FMAN_PRIVATE_DATA  *Private,
   IN UINTN  MdioBase
   )
 {
   UINT32  Value;
 
-  if (mFmanMdioConfigured && (mFmanMdioBase == MdioBase)) {
+  if ((Private == NULL) || Private->Is10G || (MdioBase != Private->PhyMdioBase)) {
+    return;
+  }
+
+  if (mFmanExternalMdioConfigured && (mFmanExternalMdioBase == MdioBase)) {
     return;
   }
 
   Value = FmanRead32 (MdioBase + FMAN_MDIO_STAT);
+  Value &= ~FMAN_MDIO_STAT_CLKDIV_MASK;
   Value |= FMAN_MDIO_STAT_CLKDIV (258) | FMAN_MDIO_STAT_NEG;
   FmanWrite32 (MdioBase + FMAN_MDIO_STAT, Value);
 
-  mFmanMdioBase = MdioBase;
-  mFmanMdioConfigured = TRUE;
+  mFmanExternalMdioBase = MdioBase;
+  mFmanExternalMdioConfigured = TRUE;
 }
 
 STATIC
@@ -797,16 +803,24 @@ FmanMdioReadAtBase (
     return EFI_INVALID_PARAMETER;
   }
 
-  FmanConfigureMdioBase (MdioBase);
+  FmanConfigureMdioBase (Private, MdioBase);
   MdioStat = FmanRead32 (MdioBase + FMAN_MDIO_STAT);
   if (DeviceAddress == FMAN_MDIO_DEVAD_NONE) {
-    MdioStat &= ~FMAN_MDIO_STAT_ENC;
+    if ((MdioStat & FMAN_MDIO_STAT_ENC) != 0) {
+      MdioStat &= ~FMAN_MDIO_STAT_ENC;
+      FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
+      MicroSecondDelay (25);
+    }
+
     DeviceAddress = Register & 0x1fU;
   } else {
-    MdioStat |= FMAN_MDIO_STAT_ENC;
+    if ((MdioStat & FMAN_MDIO_STAT_ENC) == 0) {
+      MdioStat |= FMAN_MDIO_STAT_ENC;
+      FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
+      MicroSecondDelay (25);
+    }
   }
 
-  FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
   Status = FmanMdioWait (MdioBase);
   if (EFI_ERROR (Status)) {
     FMAN_ERROR ("port %u MDIO setup wait failed: %r", Private->PortId, Status);
@@ -878,16 +892,24 @@ FmanMdioWriteAtBase (
   UINT32      Control;
   UINT32      MdioStat;
 
-  FmanConfigureMdioBase (MdioBase);
+  FmanConfigureMdioBase (Private, MdioBase);
   MdioStat = FmanRead32 (MdioBase + FMAN_MDIO_STAT);
   if (DeviceAddress == FMAN_MDIO_DEVAD_NONE) {
-    MdioStat &= ~FMAN_MDIO_STAT_ENC;
+    if ((MdioStat & FMAN_MDIO_STAT_ENC) != 0) {
+      MdioStat &= ~FMAN_MDIO_STAT_ENC;
+      FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
+      MicroSecondDelay (25);
+    }
+
     DeviceAddress = Register & 0x1fU;
   } else {
-    MdioStat |= FMAN_MDIO_STAT_ENC;
+    if ((MdioStat & FMAN_MDIO_STAT_ENC) == 0) {
+      MdioStat |= FMAN_MDIO_STAT_ENC;
+      FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
+      MicroSecondDelay (25);
+    }
   }
 
-  FmanWrite32 (MdioBase + FMAN_MDIO_STAT, MdioStat);
   Status = FmanMdioWait (MdioBase);
   if (EFI_ERROR (Status)) {
     FMAN_ERROR ("port %u MDIO write setup wait failed: %r", Private->PortId, Status);
@@ -1727,6 +1749,114 @@ FmanWriteMacAddress (
 }
 
 STATIC
+BOOLEAN
+FmanMacAddressIsBroadcast (
+  IN CONST UINT8  *MacAddress
+  )
+{
+  UINTN  Index;
+
+  for (Index = 0; Index < NET_ETHER_ADDR_LEN; Index++) {
+    if (MacAddress[Index] != 0xffU) {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+STATIC
+BOOLEAN
+FmanMacAddressEquals (
+  IN CONST UINT8  *First,
+  IN CONST UINT8  *Second
+  )
+{
+  return CompareMem (First, Second, NET_ETHER_ADDR_LEN) == 0;
+}
+
+STATIC
+VOID
+FmanConfigureMemacHashTable (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  UINTN  Hash;
+
+  for (Hash = 0; Hash < MEMAC_HASH_ENTRY_COUNT; Hash++) {
+    FmanWrite32 (
+      Private->MemacBase + MEMAC_HASHTABLE_CTRL,
+      MEMAC_HASHTABLE_CTRL_HASH (Hash)
+      );
+  }
+
+  if ((Private->Mode.ReceiveFilterSetting & EFI_SIMPLE_NETWORK_RECEIVE_BROADCAST) != 0) {
+    FmanWrite32 (
+      Private->MemacBase + MEMAC_HASHTABLE_CTRL,
+      MEMAC_HASHTABLE_CTRL_MCAST_EN | MEMAC_HASHTABLE_CTRL_HASH (MEMAC_BROADCAST_HASH)
+      );
+  }
+}
+
+EFI_STATUS
+FmanHwApplyReceiveFilters (
+  IN FMAN_PRIVATE_DATA  *Private
+  )
+{
+  UINT32  Value;
+
+  if (Private == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  FmanConfigureMemacHashTable (Private);
+
+  Value = FmanRead32 (Private->MemacBase + MEMAC_COMMAND_CONFIG);
+  if ((Private->Mode.ReceiveFilterSetting & EFI_SIMPLE_NETWORK_RECEIVE_PROMISCUOUS) != 0) {
+    Value |= MEMAC_CMD_CFG_PROMIS;
+  } else {
+    Value &= ~MEMAC_CMD_CFG_PROMIS;
+  }
+
+  FmanWrite32 (Private->MemacBase + MEMAC_COMMAND_CONFIG, Value);
+  return EFI_SUCCESS;
+}
+
+STATIC
+BOOLEAN
+FmanRxFramePassesReceiveFilters (
+  IN FMAN_PRIVATE_DATA  *Private,
+  IN CONST VOID         *Buffer,
+  IN UINTN              BufferSize
+  )
+{
+  CONST ETHER_HEAD  *EthernetHeader;
+  CONST UINT8       *DestinationAddress;
+
+  if ((Private->Mode.ReceiveFilterSetting & EFI_SIMPLE_NETWORK_RECEIVE_PROMISCUOUS) != 0) {
+    return TRUE;
+  }
+
+  if (BufferSize < sizeof (ETHER_HEAD)) {
+    return TRUE;
+  }
+
+  EthernetHeader = Buffer;
+  DestinationAddress = EthernetHeader->DstMac;
+
+  if (FmanMacAddressIsBroadcast (DestinationAddress)) {
+    return (Private->Mode.ReceiveFilterSetting & EFI_SIMPLE_NETWORK_RECEIVE_BROADCAST) != 0;
+  }
+
+  if ((DestinationAddress[0] & BIT0) == 0) {
+    return ((Private->Mode.ReceiveFilterSetting & EFI_SIMPLE_NETWORK_RECEIVE_UNICAST) != 0) &&
+           FmanMacAddressEquals (DestinationAddress, Private->Mode.CurrentAddress.Addr);
+  }
+
+  return FALSE;
+}
+
+STATIC
 EFI_STATUS
 FmanMemacReset (
   IN FMAN_PRIVATE_DATA  *Private
@@ -2477,8 +2607,9 @@ FmanHwInitialize (
 
   FMAN_INFO ("port %u hardware init: enabling RX/TX", Private->PortId);
   Value = MEMAC_CMD_CFG_RX_EN | MEMAC_CMD_CFG_TX_EN | MEMAC_CMD_CFG_NO_LEN_CHK |
-          MEMAC_CMD_CFG_TX_PAD_EN | MEMAC_CMD_CFG_CRC_FWD;
+          MEMAC_CMD_CFG_TX_PAD_EN;
   FmanWrite32 (Private->MemacBase + MEMAC_COMMAND_CONFIG, Value);
+  FmanHwApplyReceiveFilters (Private);
   FmanWrite32 (Private->RxPortBase + FMAN_RX_PORT_CFG, FMAN_PORT_CFG_IM | FMAN_PORT_CFG_ENABLE);
   FmanWrite32 (Private->TxPortBase + FMAN_TX_PORT_CFG, FMAN_PORT_CFG_IM | FMAN_PORT_CFG_ENABLE);
   FmanEnableTx (Private);
@@ -2541,8 +2672,8 @@ FmanHwCleanup (
       mFmanCommonBase = 0;
       mFmanMuramAlloc = 0;
       mFmanMuramTop = 0;
-      mFmanMdioConfigured = FALSE;
-      mFmanMdioBase = 0;
+      mFmanExternalMdioConfigured = FALSE;
+      mFmanExternalMdioBase = 0;
     }
   }
 
@@ -2709,12 +2840,13 @@ FmanHwReceive (
   UINT16        Status;
   UINT16        Length;
   VOID          *RxSlot;
+  UINTN         Attempt;
 
   if ((Buffer == NULL) || (BufferSize == NULL)) {
     return EFI_INVALID_PARAMETER;
   }
 
-  while (TRUE) {
+  for (Attempt = 0; Attempt < FMAN_RX_BD_RING_SIZE; Attempt++) {
     Bd = &((FMAN_PORT_BD *)Private->RxBdRing.HostAddress)[Private->CurrentRxIndex];
     Status = FmanBdRead16 (&Bd->Status);
     if ((Status & FMAN_RX_BD_EMPTY) != 0) {
@@ -2729,12 +2861,19 @@ FmanHwReceive (
     }
 
     Length = FmanBdRead16 (&Bd->Length);
+    RxSlot = (UINT8 *)Private->RxBufferPool.HostAddress + (Private->CurrentRxIndex * FMAN_RX_BUFFER_SIZE);
+    if (!FmanRxFramePassesReceiveFilters (Private, RxSlot, Length)) {
+      Private->Stats.RxDroppedFrames++;
+      FmanRecycleRxBd (Private, Private->CurrentRxIndex);
+      Private->CurrentRxIndex = FmanAdvanceIndex (Private->CurrentRxIndex, FMAN_RX_BD_RING_SIZE);
+      continue;
+    }
+
     if (*BufferSize < Length) {
       *BufferSize = Length;
       return EFI_BUFFER_TOO_SMALL;
     }
 
-    RxSlot = (UINT8 *)Private->RxBufferPool.HostAddress + (Private->CurrentRxIndex * FMAN_RX_BUFFER_SIZE);
     CopyMem (Buffer, RxSlot, Length);
     *BufferSize = Length;
 
@@ -2744,4 +2883,6 @@ FmanHwReceive (
     Private->Stats.RxGoodFrames++;
     return EFI_SUCCESS;
   }
+
+  return EFI_NOT_READY;
 }

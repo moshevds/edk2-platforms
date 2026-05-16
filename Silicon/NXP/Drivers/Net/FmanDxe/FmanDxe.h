@@ -58,7 +58,7 @@ typedef struct {
 #define FMAN_MAX_PACKET_SIZE  9600
 #define FMAN_RX_BD_RING_SIZE  8
 #define FMAN_TX_BD_RING_SIZE  8
-#define FMAN_RX_BUFFER_LOG2   11
+#define FMAN_RX_BUFFER_LOG2   14
 #define FMAN_RX_BUFFER_SIZE   (1U << FMAN_RX_BUFFER_LOG2)
 #define FMAN_TX_BUFFER_SIZE   FMAN_MAX_PACKET_SIZE
 
@@ -66,6 +66,7 @@ typedef struct {
 #define MEMAC_MAC_ADDR_0          0x00c
 #define MEMAC_MAC_ADDR_1          0x010
 #define MEMAC_MAXFRM              0x014
+#define MEMAC_HASHTABLE_CTRL      0x02c
 #define MEMAC_IEVENT              0x040
 #define MEMAC_TX_FIFO_SECTIONS    0x020
 #define MEMAC_IMASK               0x04c
@@ -76,8 +77,13 @@ typedef struct {
 #define MEMAC_CMD_CFG_TX_EN       BIT0
 #define MEMAC_CMD_CFG_NO_LEN_CHK  BIT17
 #define MEMAC_CMD_CFG_CRC_FWD     BIT6
+#define MEMAC_CMD_CFG_PROMIS      BIT4
 #define MEMAC_CMD_CFG_TX_PAD_EN   BIT11
 #define MEMAC_CMD_CFG_SW_RESET    BIT12
+#define MEMAC_HASHTABLE_CTRL_MCAST_EN  BIT8
+#define MEMAC_HASHTABLE_CTRL_HASH(v)   ((v) & 0x3fU)
+#define MEMAC_HASH_ENTRY_COUNT    64U
+#define MEMAC_BROADCAST_HASH      0U
 #define MEMAC_IEVENT_CLEAR_ALL    MAX_UINT32
 #define MEMAC_IMASK_DISABLE_ALL   0
 #define MEMAC_IF_MODE_XGMII       0
@@ -207,7 +213,9 @@ typedef struct {
 #define FMAN_MDIO_STAT_RD_ER      BIT1
 #define FMAN_MDIO_STAT_ENC        BIT6
 #define FMAN_MDIO_STAT_NEG        BIT23
-#define FMAN_MDIO_STAT_CLKDIV(v)  ((((v) >> 1) & 0xffU) << 8)
+#define FMAN_MDIO_STAT_CLKDIV_SHIFT  7
+#define FMAN_MDIO_STAT_CLKDIV(v)     (((v) & 0x1ffU) << FMAN_MDIO_STAT_CLKDIV_SHIFT)
+#define FMAN_MDIO_STAT_CLKDIV_MASK   (0x1ffU << FMAN_MDIO_STAT_CLKDIV_SHIFT)
 #define FMAN_MDIO_CTL_DEV_ADDR(v) ((v) & 0x1fU)
 #define FMAN_MDIO_CTL_PORT_ADDR(v) (((v) & 0x1fU) << 5)
 #define FMAN_MDIO_CTL_READ        BIT15
@@ -587,6 +595,11 @@ FmanHwReceive (
   IN  FMAN_PRIVATE_DATA  *Private,
   OUT VOID               *Buffer,
   IN OUT UINTN           *BufferSize
+  );
+
+EFI_STATUS
+FmanHwApplyReceiveFilters (
+  IN FMAN_PRIVATE_DATA  *Private
   );
 
 EFI_STATUS

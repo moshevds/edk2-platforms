@@ -28,6 +28,12 @@
 #define FMAN_EEPROM_MAC9_OFFSET           0x007A
 #define FMAN_EEPROM_MAC10_OFFSET          0x0080
 
+#define FMAN_MEMAC_1G_0_OFFSET            0x000e8000U
+#define FMAN_MEMAC_1G_1_OFFSET            0x000ea000U
+#define FMAN_MEMAC_1G_2_OFFSET            0x000e2000U
+#define FMAN_MEMAC_10G_0_OFFSET           0x000f0000U
+#define FMAN_MEMAC_10G_1_OFFSET           0x000f2000U
+
 STATIC FMAN_DEVICE_PATH mFmanDevicePathTemplate = {
   {
     {
@@ -434,24 +440,51 @@ FmanGetVariableMacAddress (
 }
 
 STATIC
-UINT8
-FmanGetBoardPortNumber (
-  IN CONST FMAN_PRIVATE_DATA  *Private
+BOOLEAN
+FmanGetMemacOffset (
+  IN  CONST FMAN_PRIVATE_DATA  *Private,
+  OUT UINTN                    *MemacOffset
   )
 {
-  switch (Private->MemacBase) {
-    case 0x1AE8000:
-      return 0;
-    case 0x1AEA000:
-      return 1;
-    case 0x1AE2000:
-      return 2;
-    case 0x1AF0000:
-      return 3;
-    case 0x1AF2000:
-      return 4;
+  if ((Private == NULL) || (MemacOffset == NULL) || (Private->MemacBase < Private->FmanBase)) {
+    return FALSE;
+  }
+
+  *MemacOffset = Private->MemacBase - Private->FmanBase;
+  return TRUE;
+}
+
+STATIC
+BOOLEAN
+FmanGetBoardPortNumber (
+  IN  CONST FMAN_PRIVATE_DATA  *Private,
+  OUT UINT8                    *BoardPort
+  )
+{
+  UINTN  MemacOffset;
+
+  if ((BoardPort == NULL) || !FmanGetMemacOffset (Private, &MemacOffset)) {
+    return FALSE;
+  }
+
+  switch (MemacOffset) {
+    case FMAN_MEMAC_1G_0_OFFSET:
+      *BoardPort = 0;
+      return TRUE;
+    case FMAN_MEMAC_1G_1_OFFSET:
+      *BoardPort = 1;
+      return TRUE;
+    case FMAN_MEMAC_1G_2_OFFSET:
+      *BoardPort = 2;
+      return TRUE;
+    case FMAN_MEMAC_10G_0_OFFSET:
+      *BoardPort = 3;
+      return TRUE;
+    case FMAN_MEMAC_10G_1_OFFSET:
+      *BoardPort = 4;
+      return TRUE;
     default:
-      return (UINT8)((Private->MemacBase >> 12) & 0xff);
+      return FALSE;
   }
 }
 
@@ -461,17 +494,23 @@ FmanGetPcsPortAddress (
   IN CONST FMAN_PRIVATE_DATA  *Private
   )
 {
-  switch (Private->MemacBase) {
-    case 0x1AE8000:
+  UINTN  MemacOffset;
+
+  if (!FmanGetMemacOffset (Private, &MemacOffset)) {
+    return 0;
+  }
+
+  switch (MemacOffset) {
+    case FMAN_MEMAC_1G_0_OFFSET:
       return 0;
 
-    case 0x1AEA000:
+    case FMAN_MEMAC_1G_1_OFFSET:
       return 0;
 
-    case 0x1AE2000:
+    case FMAN_MEMAC_1G_2_OFFSET:
       return 0;
 
-    case 0x1AF0000:
+    case FMAN_MEMAC_10G_0_OFFSET:
       //
       // DT:
       //   ethernet@f0000 -> pcs-handle = <0x30>
@@ -479,7 +518,7 @@ FmanGetPcsPortAddress (
       //
       return 0;
 
-    case 0x1AF2000:
+    case FMAN_MEMAC_10G_1_OFFSET:
       //
       // DT:
       //   ethernet@f2000 -> pcs-handle-names = "sgmii", "qsgmii", "xfi"
@@ -516,8 +555,14 @@ FmanGetPhyPortAddress (
   IN CONST FMAN_PRIVATE_DATA  *Private
   )
 {
-  switch (Private->MemacBase) {
-    case 0x1AE8000:
+  UINTN  MemacOffset;
+
+  if (!FmanGetMemacOffset (Private, &MemacOffset)) {
+    return 0;
+  }
+
+  switch (MemacOffset) {
+    case FMAN_MEMAC_1G_0_OFFSET:
       //
       // DT:
       //   ethernet@e8000 -> phy-handle = <0x29>
@@ -525,7 +570,7 @@ FmanGetPhyPortAddress (
       //
       return 0;
 
-    case 0x1AEA000:
+    case FMAN_MEMAC_1G_1_OFFSET:
       //
       // DT:
       //   ethernet@ea000 -> phy-handle = <0x2d>
@@ -533,7 +578,7 @@ FmanGetPhyPortAddress (
       //
       return 1;
 
-    case 0x1AE2000:
+    case FMAN_MEMAC_1G_2_OFFSET:
       //
       // DT:
       //   ethernet@e2000 -> phy-handle = <0x1e>
@@ -552,9 +597,15 @@ FmanPortIs10g (
   IN CONST FMAN_PRIVATE_DATA  *Private
   )
 {
-  switch (Private->MemacBase) {
-    case 0x1AF0000:
-    case 0x1AF2000:
+  UINTN  MemacOffset;
+
+  if (!FmanGetMemacOffset (Private, &MemacOffset)) {
+    return FALSE;
+  }
+
+  switch (MemacOffset) {
+    case FMAN_MEMAC_10G_0_OFFSET:
+    case FMAN_MEMAC_10G_1_OFFSET:
       return TRUE;
     default:
       return FALSE;
@@ -572,7 +623,16 @@ FmanSelectMacAddress (
   UINT8            BoardPort;
   CHAR16           VariableName[16];
 
-  BoardPort = FmanGetBoardPortNumber (Private);
+  if (!FmanGetBoardPortNumber (Private, &BoardPort)) {
+    DEBUG ((
+      DEBUG_ERROR,
+      "FmanDxe: unsupported MEMAC base 0x%Lx relative to FMan base 0x%Lx\n",
+      (UINT64)Private->MemacBase,
+      (UINT64)Private->FmanBase
+      ));
+    return FALSE;
+  }
+
   Private->PortId = BoardPort;
 
   if (FmanGetEepromMacAddress (BoardPort, &EepromMac)) {
